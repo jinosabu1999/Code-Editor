@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useRef, useState, useCallback } from "react"
+import { useRef, useState, useCallback, useEffect } from "react"
 
 interface SyntaxHighlighterProps {
   code: string
@@ -25,7 +25,15 @@ export default function SyntaxHighlighter({
   theme = "light",
 }: SyntaxHighlighterProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lineNumbersRef = useRef<HTMLDivElement>(null)
   const [isFocused, setIsFocused] = useState(false)
+
+  // Sync scroll between textarea and line numbers
+  const handleScroll = useCallback(() => {
+    if (textareaRef.current && lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop
+    }
+  }, [])
 
   // Handle tab key and basic editing
   const handleKeyDown = useCallback(
@@ -92,7 +100,7 @@ export default function SyntaxHighlighter({
     [onChange],
   )
 
-  // Generate line numbers
+  // Generate line numbers that match the actual lines
   const generateLineNumbers = useCallback(() => {
     const lines = code.split("\n")
     return lines.map((_, i) => (
@@ -110,12 +118,22 @@ export default function SyntaxHighlighter({
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
+          flexShrink: 0,
         }}
       >
         {i + 1}
       </div>
     ))
   }, [code, fontSize, theme])
+
+  // Add scroll event listener
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      textarea.addEventListener("scroll", handleScroll)
+      return () => textarea.removeEventListener("scroll", handleScroll)
+    }
+  }, [handleScroll])
 
   return (
     <div
@@ -131,18 +149,26 @@ export default function SyntaxHighlighter({
       style={{
         backgroundColor: theme === "dark" ? "#111827" : "#FFFFFF",
         minHeight: "200px",
+        height: "100%",
       }}
     >
       <div className="flex h-full">
         {/* Line numbers */}
         {lineNumbers && (
-          <div className="flex-shrink-0 border-r border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 overflow-hidden">
-            {generateLineNumbers()}
+          <div
+            ref={lineNumbersRef}
+            className="flex-shrink-0 border-r border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 overflow-hidden"
+            style={{
+              maxHeight: "100%",
+              overflowY: "hidden",
+            }}
+          >
+            <div className="flex flex-col">{generateLineNumbers()}</div>
           </div>
         )}
 
-        {/* Simple textarea - NO OVERLAY */}
-        <div className="flex-1 relative">
+        {/* Textarea - handles unlimited lines */}
+        <div className="flex-1 relative overflow-hidden">
           <textarea
             ref={textareaRef}
             value={code}
@@ -150,7 +176,7 @@ export default function SyntaxHighlighter({
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            className="w-full h-full resize-none bg-transparent border-0 outline-none"
+            className="w-full h-full resize-none bg-transparent border-0 outline-none overflow-auto"
             style={{
               fontSize: `${fontSize}px`,
               lineHeight: "1.5",
@@ -160,6 +186,7 @@ export default function SyntaxHighlighter({
               color: theme === "dark" ? "#E2E8F0" : "#1E293B",
               caretColor: theme === "dark" ? "#60A5FA" : "#2563EB",
               fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
+              minHeight: "100%",
             }}
             spellCheck="false"
             autoComplete="off"

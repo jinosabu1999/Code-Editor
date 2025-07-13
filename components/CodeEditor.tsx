@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 }
 
-// Enhanced reducer for file system operations
+// Enhanced reducer for file system operations with proper history
 function fileSystemReducer(state: FileSystemState, action) {
   switch (action.type) {
     case "CREATE_FILE":
@@ -119,6 +119,24 @@ function fileSystemReducer(state: FileSystemState, action) {
       )
 
     case "UPDATE_FILE":
+      const fileToUpdate = getFileById(state.files, action.id)
+      if (fileToUpdate && action.updates.content !== undefined) {
+        // Handle history for undo/redo
+        const currentContent = fileToUpdate.content
+        const newContent = action.updates.content
+
+        if (currentContent !== newContent) {
+          const history = fileToUpdate.history || [currentContent]
+          const historyIndex = fileToUpdate.historyIndex ?? 0
+
+          // Add to history if it's a new change (not undo/redo)
+          if (!action.skipHistory) {
+            const newHistory = [...history.slice(0, historyIndex + 1), newContent]
+            action.updates.history = newHistory
+            action.updates.historyIndex = newHistory.length - 1
+          }
+        }
+      }
       return updateFile(state, action.id, action.updates)
 
     case "DELETE_FILE":
@@ -156,22 +174,22 @@ function CodeEditorContent() {
   const [currentZoom, setCurrentZoom] = useState(100)
   const [isRunning, setIsRunning] = useState(false)
 
+  // Fixed themes with proper light theme
   const themes = {
     light: {
-      bg: "bg-gradient-to-br from-slate-50 to-blue-50",
-      text: "text-slate-800",
-      primary: "bg-white/80 backdrop-blur-sm shadow-xl border-white/20",
-      secondary: "bg-slate-50/80 backdrop-blur-sm",
+      bg: "bg-gradient-to-br from-white to-gray-50",
+      text: "text-gray-900",
+      primary: "bg-white shadow-lg border border-gray-200",
+      secondary: "bg-gray-50",
       accent: "text-blue-600",
-      border: "border-slate-200/50",
-      editor: "bg-white text-slate-800",
-      button:
-        "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg",
+      border: "border-gray-200",
+      editor: "bg-white text-gray-900",
+      button: "bg-blue-600 hover:bg-blue-700 text-white shadow-md",
       activeTab: "bg-white text-blue-600 border-blue-500 border-b-2 shadow-sm",
-      inactiveTab: "text-slate-600 hover:text-slate-900 hover:bg-slate-50",
-      preview: "bg-white text-slate-800",
-      success: "text-emerald-600",
-      warning: "text-amber-600",
+      inactiveTab: "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
+      preview: "bg-white text-gray-900",
+      success: "text-green-600",
+      warning: "text-yellow-600",
       error: "text-red-600",
     },
     dark: {
@@ -182,8 +200,7 @@ function CodeEditorContent() {
       accent: "text-blue-400",
       border: "border-slate-700/50",
       editor: "bg-slate-900 text-slate-100",
-      button:
-        "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg",
+      button: "bg-blue-600 hover:bg-blue-700 text-white shadow-lg",
       activeTab: "bg-slate-900 text-blue-400 border-blue-500 border-b-2 shadow-sm",
       inactiveTab: "text-slate-400 hover:text-slate-200 hover:bg-slate-700",
       preview: "bg-slate-900 text-slate-100",
@@ -326,33 +343,47 @@ function CodeEditorContent() {
   const zoomOut = () => setCurrentZoom((prev) => Math.max(prev - 10, 50))
   const resetZoom = () => setCurrentZoom(100)
 
-  // Undo/Redo operations
+  // Fixed Undo/Redo operations
   const undo = () => {
     const currentFile = getCurrentFile()
-    if (!currentFile || !currentFile.historyIndex || currentFile.historyIndex <= 0) return
+    if (!currentFile || !currentFile.history || currentFile.historyIndex <= 0) {
+      showNotification("Nothing to undo", "warning")
+      return
+    }
+
+    const newIndex = currentFile.historyIndex - 1
+    const previousContent = currentFile.history[newIndex]
 
     dispatch({
       type: "UPDATE_FILE",
       id: activeFileId,
       updates: {
-        content: currentFile.history[currentFile.historyIndex - 1],
-        historyIndex: currentFile.historyIndex - 1,
+        content: previousContent,
+        historyIndex: newIndex,
       },
+      skipHistory: true,
     })
     showNotification("Undone")
   }
 
   const redo = () => {
     const currentFile = getCurrentFile()
-    if (!currentFile || !currentFile.history || currentFile.historyIndex >= currentFile.history.length - 1) return
+    if (!currentFile || !currentFile.history || currentFile.historyIndex >= currentFile.history.length - 1) {
+      showNotification("Nothing to redo", "warning")
+      return
+    }
+
+    const newIndex = currentFile.historyIndex + 1
+    const nextContent = currentFile.history[newIndex]
 
     dispatch({
       type: "UPDATE_FILE",
       id: activeFileId,
       updates: {
-        content: currentFile.history[currentFile.historyIndex + 1],
-        historyIndex: currentFile.historyIndex + 1,
+        content: nextContent,
+        historyIndex: newIndex,
       },
+      skipHistory: true,
     })
     showNotification("Redone")
   }
@@ -410,57 +441,56 @@ function CodeEditorContent() {
     return getFileById(fileSystem.files, activeFileId)
   }, [fileSystem.files, activeFileId])
 
-  const updateCurrentFile = (newContent: string, addToHistory = true) => {
+  const updateCurrentFile = (newContent: string) => {
     const currentFile = getCurrentFile()
     if (!currentFile) return
-
-    const updates: any = { content: newContent }
-
-    if (addToHistory) {
-      const newHistory = currentFile.history
-        ? [...currentFile.history.slice(0, (currentFile.historyIndex || 0) + 1), newContent]
-        : [newContent]
-
-      updates.history = newHistory
-      updates.historyIndex = newHistory.length - 1
-    }
 
     dispatch({
       type: "UPDATE_FILE",
       id: activeFileId,
-      updates,
+      updates: { content: newContent },
     })
 
+    // Update preview immediately
     updatePreview()
   }
 
+  // Fixed preview update function
   const updatePreview = () => {
     try {
       const currentFile = getCurrentFile()
 
       if (currentFile && currentFile.type === "html") {
+        // If current file is HTML, show it directly
         setPreview(currentFile.content)
         return
       }
 
-      const htmlFile = fileSystem.files.find((f) => f.name === "index.html")
+      // Look for index.html or any HTML file
+      let htmlFile = fileSystem.files.find((f) => f.name === "index.html")
+      if (!htmlFile) {
+        htmlFile = fileSystem.files.find((f) => f.type === "html")
+      }
+
       if (htmlFile) {
         const cssFiles = fileSystem.files.filter((f) => f.type === "css")
         const jsFiles = fileSystem.files.filter((f) => f.type === "js")
 
         let htmlContent = htmlFile.content
 
+        // Inject CSS
         if (cssFiles.length > 0) {
-          const styleTag = cssFiles.map((file) => `<style>${file.content}</style>`).join("\n")
+          const styleTag = cssFiles.map((file) => `<style>\n${file.content}\n</style>`).join("\n")
           if (htmlContent.includes("</head>")) {
             htmlContent = htmlContent.replace("</head>", `${styleTag}\n</head>`)
           } else {
-            htmlContent = `${styleTag}\n${htmlContent}`
+            htmlContent = `<head>\n${styleTag}\n</head>\n${htmlContent}`
           }
         }
 
+        // Inject JavaScript
         if (jsFiles.length > 0) {
-          const scriptTag = jsFiles.map((file) => `<script>${file.content}</script>`).join("\n")
+          const scriptTag = jsFiles.map((file) => `<script>\n${file.content}\n</script>`).join("\n")
           if (htmlContent.includes("</body>")) {
             htmlContent = htmlContent.replace("</body>", `${scriptTag}\n</body>`)
           } else {
@@ -470,32 +500,60 @@ function CodeEditorContent() {
 
         setPreview(htmlContent)
       } else {
+        // Show message when no HTML file exists
         const noFileMessage = `
-          <div style="
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            height: 100vh; 
-            font-family: system-ui, -apple-system, sans-serif;
-            background: ${appTheme === "dark" ? "#0F172A" : "#F8FAFC"};
-            color: ${appTheme === "dark" ? "#E2E8F0" : "#334155"};
-            margin: 0;
-            padding: 20px;
-            text-align: center;
-          ">
-            <div>
-              <div style="font-size: 48px; margin-bottom: 16px;">📄</div>
-              <h3 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">No HTML file found</h3>
-              <p style="margin: 0; opacity: 0.7;">Create an index.html file to see the preview</p>
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>No Preview</title>
+            <style>
+              body {
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                height: 100vh; 
+                font-family: system-ui, -apple-system, sans-serif;
+                background: ${appTheme === "dark" ? "#0F172A" : "#F8FAFC"};
+                color: ${appTheme === "dark" ? "#E2E8F0" : "#334155"};
+                margin: 0;
+                padding: 20px;
+                text-align: center;
+              }
+              .message {
+                max-width: 400px;
+              }
+              .icon {
+                font-size: 48px; 
+                margin-bottom: 16px;
+              }
+              h3 {
+                margin: 0 0 10px 0; 
+                font-size: 18px; 
+                font-weight: 600;
+              }
+              p {
+                margin: 0; 
+                opacity: 0.7;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="message">
+              <div class="icon">📄</div>
+              <h3>No HTML file found</h3>
+              <p>Create an HTML file to see the preview</p>
             </div>
-          </div>
+          </body>
+          </html>
         `
         setPreview(noFileMessage)
       }
 
       setError("")
     } catch (err) {
-      showNotification(err.message, "error")
+      showNotification(`Preview error: ${err.message}`, "error")
     }
   }
 
@@ -635,14 +693,18 @@ function CodeEditorContent() {
     }
   }
 
-  // Run code (for demonstration)
+  // Fixed run code function
   const runCode = () => {
     setIsRunning(true)
     showNotification("Running code...")
+
+    // Force update preview
+    updatePreview()
+
     setTimeout(() => {
       setIsRunning(false)
-      showNotification("Code executed successfully")
-    }, 2000)
+      showNotification("Code executed and preview updated!")
+    }, 1000)
   }
 
   return (
@@ -758,7 +820,7 @@ function CodeEditorContent() {
             className={`${currentTheme.button} h-8 w-8 sm:h-10 sm:w-10`}
             onClick={runCode}
             disabled={isRunning}
-            title="Execute the current code"
+            title="Execute the current code and update preview"
             aria-label={isRunning ? "Code is running" : "Run code"}
           >
             {isRunning ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
