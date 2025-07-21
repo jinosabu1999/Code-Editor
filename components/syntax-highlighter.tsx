@@ -26,14 +26,53 @@ export default function SyntaxHighlighter({
 }: SyntaxHighlighterProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const lineNumbersRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const [isFocused, setIsFocused] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
-  // Sync scroll between textarea and line numbers
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
+
+  // PERFECT scroll synchronization - this is the key fix
   const handleScroll = useCallback(() => {
     if (textareaRef.current && lineNumbersRef.current) {
-      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop
+      const textarea = textareaRef.current
+      const lineNumbers = lineNumbersRef.current
+
+      // Perfect 1:1 synchronization
+      lineNumbers.scrollTop = textarea.scrollTop
+      lineNumbers.scrollLeft = textarea.scrollLeft
     }
   }, [])
+
+  // Enhanced scroll event handling with immediate sync
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea && lineNumbersRef.current) {
+      // Multiple event listeners for perfect sync
+      const events = ["scroll", "input", "keyup", "mouseup", "touchend"]
+
+      events.forEach((event) => {
+        textarea.addEventListener(event, handleScroll, { passive: true })
+      })
+
+      // Initial sync
+      handleScroll()
+
+      return () => {
+        events.forEach((event) => {
+          textarea.removeEventListener(event, handleScroll)
+        })
+      }
+    }
+  }, [handleScroll, code])
 
   // Handle tab key and basic editing
   const handleKeyDown = useCallback(
@@ -50,6 +89,7 @@ export default function SyntaxHighlighter({
         // Set cursor position after the tab
         setTimeout(() => {
           textarea.selectionStart = textarea.selectionEnd = selectionStart + indent.length
+          handleScroll() // Sync after change
         }, 0)
       } else if (e.key === "Enter") {
         // Auto-indentation
@@ -70,6 +110,7 @@ export default function SyntaxHighlighter({
 
         setTimeout(() => {
           textarea.selectionStart = textarea.selectionEnd = selectionStart + 1 + newIndent.length
+          handleScroll() // Sync after change
         }, 0)
 
         e.preventDefault()
@@ -93,50 +134,76 @@ export default function SyntaxHighlighter({
 
           setTimeout(() => {
             textarea.selectionStart = textarea.selectionEnd = selectionStart + 1
+            handleScroll() // Sync after change
           }, 0)
         }
       }
     },
-    [onChange],
+    [onChange, handleScroll],
   )
 
-  // Generate line numbers that match the actual lines
+  // Generate line numbers with EXACT matching dimensions
   const generateLineNumbers = useCallback(() => {
     const lines = code.split("\n")
-    return lines.map((_, i) => (
+    const lineHeight = fontSize * 1.5 // Exact same line height as textarea
+    const paddingTop = isMobile ? 12 : 16 // Match textarea padding
+
+    return (
       <div
-        key={i}
         style={{
-          color: theme === "dark" ? "#6B7280" : "#9CA3AF",
-          userSelect: "none",
-          textAlign: "right",
-          paddingRight: "12px",
-          minWidth: "3rem",
-          fontSize: `${fontSize - 2}px`,
-          lineHeight: "1.5",
-          height: `${fontSize * 1.5}px`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          flexShrink: 0,
+          lineHeight: "1.5", // Exact same as textarea
+          paddingTop: `${paddingTop}px`, // Match textarea padding
+          fontSize: `${fontSize}px`, // Same font size for perfect alignment
+          fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace", // Same font
         }}
       >
-        {i + 1}
+        {lines.map((_, i) => (
+          <div
+            key={i}
+            style={{
+              color: theme === "dark" ? "#6B7280" : "#9CA3AF",
+              userSelect: "none",
+              textAlign: "right",
+              paddingRight: isMobile ? "8px" : "12px",
+              minWidth: isMobile ? "2.5rem" : "3rem",
+              height: `${lineHeight}px`, // Exact line height match
+              display: "flex",
+              alignItems: "flex-start", // Top alignment like textarea
+              justifyContent: "flex-end",
+              boxSizing: "border-box",
+              margin: 0, // No margin
+              border: 0, // No border
+            }}
+          >
+            {i + 1}
+          </div>
+        ))}
       </div>
-    ))
-  }, [code, fontSize, theme])
+    )
+  }, [code, fontSize, theme, isMobile])
 
-  // Add scroll event listener
+  // Auto-resize textarea and sync dimensions
   useEffect(() => {
-    const textarea = textareaRef.current
-    if (textarea) {
-      textarea.addEventListener("scroll", handleScroll)
-      return () => textarea.removeEventListener("scroll", handleScroll)
+    if (textareaRef.current && lineNumbersRef.current) {
+      const textarea = textareaRef.current
+      const lineNumbers = lineNumbersRef.current
+
+      if (isMobile) {
+        // On mobile, ensure textarea can scroll and shows all content
+        textarea.style.height = "auto"
+        const scrollHeight = Math.max(textarea.scrollHeight, 300)
+        textarea.style.height = scrollHeight + "px"
+        lineNumbers.style.height = scrollHeight + "px"
+      }
+
+      // Sync scroll position after resize
+      setTimeout(handleScroll, 0)
     }
-  }, [handleScroll])
+  }, [code, isMobile, handleScroll])
 
   return (
     <div
+      ref={containerRef}
       className={`relative font-mono ${className} overflow-hidden rounded-lg border-2 transition-all duration-200 ${
         isFocused
           ? theme === "dark"
@@ -148,45 +215,58 @@ export default function SyntaxHighlighter({
       }`}
       style={{
         backgroundColor: theme === "dark" ? "#111827" : "#FFFFFF",
-        minHeight: "200px",
-        height: "100%",
+        minHeight: isMobile ? "300px" : "200px",
+        height: isMobile ? "auto" : "100%",
+        maxHeight: isMobile ? "60vh" : "100%",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <div className="flex h-full">
-        {/* Line numbers */}
+      <div className={`flex flex-1 ${isMobile ? "overflow-auto" : "overflow-hidden"}`}>
+        {/* Line numbers with perfect synchronization */}
         {lineNumbers && (
           <div
             ref={lineNumbersRef}
-            className="flex-shrink-0 border-r border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 overflow-hidden"
+            className="flex-shrink-0 border-r border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
             style={{
-              maxHeight: "100%",
-              overflowY: "hidden",
+              overflow: "hidden", // Hide scrollbars but allow programmatic scrolling
+              width: isMobile ? "3rem" : "4rem",
+              position: "relative",
             }}
           >
-            <div className="flex flex-col">{generateLineNumbers()}</div>
+            {generateLineNumbers()}
           </div>
         )}
 
-        {/* Textarea - handles unlimited lines */}
+        {/* Textarea container */}
         <div className="flex-1 relative overflow-hidden">
           <textarea
             ref={textareaRef}
             value={code}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              onChange(e.target.value)
+              // Sync scroll after content change
+              setTimeout(handleScroll, 0)
+            }}
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            className="w-full h-full resize-none bg-transparent border-0 outline-none overflow-auto"
+            onScroll={handleScroll} // Direct scroll handler
+            className="w-full h-full resize-none bg-transparent border-0 outline-none"
             style={{
-              fontSize: `${fontSize}px`,
-              lineHeight: "1.5",
-              padding: "16px",
+              fontSize: `${isMobile ? Math.max(fontSize - 2, 12) : fontSize}px`,
+              lineHeight: "1.5", // Exact match with line numbers
+              padding: isMobile ? "12px" : "16px", // Match line numbers padding
               whiteSpace: wordWrap ? "pre-wrap" : "pre",
               wordBreak: wordWrap ? "break-word" : "normal",
               color: theme === "dark" ? "#E2E8F0" : "#1E293B",
               caretColor: theme === "dark" ? "#60A5FA" : "#2563EB",
               fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
-              minHeight: "100%",
+              overflow: "auto",
+              minHeight: isMobile ? "300px" : "100%",
+              maxHeight: isMobile ? "60vh" : "none",
+              margin: 0, // No margin
+              border: 0, // No border
             }}
             spellCheck="false"
             autoComplete="off"
@@ -197,13 +277,14 @@ export default function SyntaxHighlighter({
         </div>
       </div>
 
-      {/* Focus indicator */}
+      {/* Enhanced focus indicator */}
       {isFocused && (
         <div
-          className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium"
+          className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium shadow-md"
           style={{
             backgroundColor: theme === "dark" ? "#1F2937" : "#F3F4F6",
             color: theme === "dark" ? "#60A5FA" : "#2563EB",
+            border: `1px solid ${theme === "dark" ? "#374151" : "#E5E7EB"}`,
             zIndex: 3,
           }}
         >

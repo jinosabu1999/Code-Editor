@@ -9,22 +9,14 @@ import {
   Undo,
   Redo,
   Upload,
-  Download,
   SettingsIcon,
-  Save,
   Menu,
   X,
   ChevronLeft,
   Trash2,
-  Search,
-  Copy,
-  ClipboardPasteIcon as Paste,
-  ZoomIn,
-  ZoomOut,
   FileText,
   Play,
   Square,
-  RotateCcw,
   Eye,
   EyeOff,
   Code,
@@ -60,6 +52,7 @@ const getLanguageFromFileName = (fileName) => {
 </head>
 <body>
     <h1>Hello World!</h1>
+    <p>This is a sample HTML page.</p>
 </body>
 </html>`,
       }
@@ -77,12 +70,19 @@ body {
     font-family: Arial, sans-serif;
     line-height: 1.6;
     color: #333;
+    background-color: #f4f4f4;
 }
 
 .container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
+}
+
+h1 {
+    color: #2c3e50;
+    text-align: center;
+    margin-bottom: 20px;
 }`,
       }
     case "js":
@@ -99,6 +99,12 @@ const greet = (name) => {
 // Event listener example
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded');
+    
+    // Example: Change text content
+    const heading = document.querySelector('h1');
+    if (heading) {
+        heading.style.color = '#e74c3c';
+    }
 });`,
       }
     default:
@@ -125,16 +131,14 @@ function fileSystemReducer(state: FileSystemState, action) {
         const currentContent = fileToUpdate.content
         const newContent = action.updates.content
 
-        if (currentContent !== newContent) {
+        if (currentContent !== newContent && !action.skipHistory) {
           const history = fileToUpdate.history || [currentContent]
           const historyIndex = fileToUpdate.historyIndex ?? 0
 
-          // Add to history if it's a new change (not undo/redo)
-          if (!action.skipHistory) {
-            const newHistory = [...history.slice(0, historyIndex + 1), newContent]
-            action.updates.history = newHistory
-            action.updates.historyIndex = newHistory.length - 1
-          }
+          // Add to history
+          const newHistory = [...history.slice(0, historyIndex + 1), newContent]
+          action.updates.history = newHistory
+          action.updates.historyIndex = newHistory.length - 1
         }
       }
       return updateFile(state, action.id, action.updates)
@@ -173,6 +177,17 @@ function CodeEditorContent() {
   const [isPreviewVisible, setIsPreviewVisible] = useState(true)
   const [currentZoom, setCurrentZoom] = useState(100)
   const [isRunning, setIsRunning] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
 
   // Fixed themes with proper light theme
   const themes = {
@@ -222,6 +237,147 @@ function CodeEditorContent() {
       setTimeout(() => setError(""), 5000)
     }
   }, [])
+
+  // File operations
+  const getCurrentFile = useCallback(() => {
+    return getFileById(fileSystem.files, activeFileId)
+  }, [fileSystem.files, activeFileId])
+
+  const updateCurrentFile = useCallback(
+    (newContent: string) => {
+      const currentFile = getCurrentFile()
+      if (!currentFile) return
+
+      dispatch({
+        type: "UPDATE_FILE",
+        id: activeFileId,
+        updates: { content: newContent },
+      })
+    },
+    [activeFileId, getCurrentFile],
+  )
+
+  // Fixed preview update function with better mobile support
+  const updatePreview = useCallback(() => {
+    try {
+      const currentFile = getCurrentFile()
+
+      if (currentFile && currentFile.type === "html") {
+        // If current file is HTML, show it directly
+        let htmlContent = currentFile.content
+
+        // Ensure mobile viewport meta tag
+        if (!htmlContent.includes("viewport")) {
+          htmlContent = htmlContent.replace(
+            "<head>",
+            '<head>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+          )
+        }
+
+        setPreview(htmlContent)
+        return
+      }
+
+      // Look for index.html or any HTML file
+      let htmlFile = fileSystem.files.find((f) => f.name === "index.html")
+      if (!htmlFile) {
+        htmlFile = fileSystem.files.find((f) => f.type === "html")
+      }
+
+      if (htmlFile) {
+        const cssFiles = fileSystem.files.filter((f) => f.type === "css")
+        const jsFiles = fileSystem.files.filter((f) => f.type === "js")
+
+        let htmlContent = htmlFile.content
+
+        // Ensure mobile viewport meta tag
+        if (!htmlContent.includes("viewport")) {
+          htmlContent = htmlContent.replace(
+            "<head>",
+            '<head>\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+          )
+        }
+
+        // Inject CSS
+        if (cssFiles.length > 0) {
+          const styleTag = cssFiles.map((file) => `<style>\n${file.content}\n</style>`).join("\n")
+          if (htmlContent.includes("</head>")) {
+            htmlContent = htmlContent.replace("</head>", `${styleTag}\n</head>`)
+          } else if (htmlContent.includes("<head>")) {
+            htmlContent = htmlContent.replace("<head>", `<head>\n${styleTag}`)
+          } else {
+            htmlContent = `<head>\n${styleTag}\n</head>\n${htmlContent}`
+          }
+        }
+
+        // Inject JavaScript
+        if (jsFiles.length > 0) {
+          const scriptTag = jsFiles.map((file) => `<script>\n${file.content}\n</script>`).join("\n")
+          if (htmlContent.includes("</body>")) {
+            htmlContent = htmlContent.replace("</body>", `${scriptTag}\n</body>`)
+          } else {
+            htmlContent = `${htmlContent}\n${scriptTag}`
+          }
+        }
+
+        setPreview(htmlContent)
+      } else {
+        // Show message when no HTML file exists
+        const noFileMessage = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>No Preview</title>
+            <style>
+              body {
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                height: 100vh; 
+                font-family: system-ui, -apple-system, sans-serif;
+                background: ${appTheme === "dark" ? "#0F172A" : "#F8FAFC"};
+                color: ${appTheme === "dark" ? "#E2E8F0" : "#334155"};
+                margin: 0;
+                padding: 20px;
+                text-align: center;
+              }
+              .message {
+                max-width: 400px;
+              }
+              .icon {
+                font-size: 48px; 
+                margin-bottom: 16px;
+              }
+              h3 {
+                margin: 0 0 10px 0; 
+                font-size: 18px; 
+                font-weight: 600;
+              }
+              p {
+                margin: 0; 
+                opacity: 0.7;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="message">
+              <div class="icon">📄</div>
+              <h3>No HTML file found</h3>
+              <p>Create an HTML file to see the preview</p>
+            </div>
+          </body>
+          </html>
+        `
+        setPreview(noFileMessage)
+      }
+
+      setError("")
+    } catch (err) {
+      showNotification(`Preview error: ${err.message}`, "error")
+    }
+  }, [fileSystem.files, getCurrentFile, appTheme, showNotification])
 
   // Load saved files from localStorage
   useEffect(() => {
@@ -323,10 +479,10 @@ function CodeEditorContent() {
     }
   }, [editorSettings.autoSave, fileSystem])
 
-  // Update preview when active file changes
+  // Update preview when active file changes or file system changes
   useEffect(() => {
     updatePreview()
-  }, [activeFileId, fileSystem])
+  }, [activeFileId, fileSystem, updatePreview])
 
   // Save file system to localStorage
   useEffect(() => {
@@ -335,8 +491,8 @@ function CodeEditorContent() {
 
   // Responsive sidebar
   useEffect(() => {
-    setIsSidebarOpen(!isMobileView)
-  }, [isMobileView])
+    setIsSidebarOpen(!isMobile)
+  }, [isMobile])
 
   // Zoom functions
   const zoomIn = () => setCurrentZoom((prev) => Math.min(prev + 10, 200))
@@ -434,127 +590,6 @@ function CodeEditorContent() {
 
     // Clear the input
     event.target.value = ""
-  }
-
-  // File operations
-  const getCurrentFile = useCallback(() => {
-    return getFileById(fileSystem.files, activeFileId)
-  }, [fileSystem.files, activeFileId])
-
-  const updateCurrentFile = (newContent: string) => {
-    const currentFile = getCurrentFile()
-    if (!currentFile) return
-
-    dispatch({
-      type: "UPDATE_FILE",
-      id: activeFileId,
-      updates: { content: newContent },
-    })
-
-    // Update preview immediately
-    updatePreview()
-  }
-
-  // Fixed preview update function
-  const updatePreview = () => {
-    try {
-      const currentFile = getCurrentFile()
-
-      if (currentFile && currentFile.type === "html") {
-        // If current file is HTML, show it directly
-        setPreview(currentFile.content)
-        return
-      }
-
-      // Look for index.html or any HTML file
-      let htmlFile = fileSystem.files.find((f) => f.name === "index.html")
-      if (!htmlFile) {
-        htmlFile = fileSystem.files.find((f) => f.type === "html")
-      }
-
-      if (htmlFile) {
-        const cssFiles = fileSystem.files.filter((f) => f.type === "css")
-        const jsFiles = fileSystem.files.filter((f) => f.type === "js")
-
-        let htmlContent = htmlFile.content
-
-        // Inject CSS
-        if (cssFiles.length > 0) {
-          const styleTag = cssFiles.map((file) => `<style>\n${file.content}\n</style>`).join("\n")
-          if (htmlContent.includes("</head>")) {
-            htmlContent = htmlContent.replace("</head>", `${styleTag}\n</head>`)
-          } else {
-            htmlContent = `<head>\n${styleTag}\n</head>\n${htmlContent}`
-          }
-        }
-
-        // Inject JavaScript
-        if (jsFiles.length > 0) {
-          const scriptTag = jsFiles.map((file) => `<script>\n${file.content}\n</script>`).join("\n")
-          if (htmlContent.includes("</body>")) {
-            htmlContent = htmlContent.replace("</body>", `${scriptTag}\n</body>`)
-          } else {
-            htmlContent = `${htmlContent}\n${scriptTag}`
-          }
-        }
-
-        setPreview(htmlContent)
-      } else {
-        // Show message when no HTML file exists
-        const noFileMessage = `
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>No Preview</title>
-            <style>
-              body {
-                display: flex; 
-                align-items: center; 
-                justify-content: center; 
-                height: 100vh; 
-                font-family: system-ui, -apple-system, sans-serif;
-                background: ${appTheme === "dark" ? "#0F172A" : "#F8FAFC"};
-                color: ${appTheme === "dark" ? "#E2E8F0" : "#334155"};
-                margin: 0;
-                padding: 20px;
-                text-align: center;
-              }
-              .message {
-                max-width: 400px;
-              }
-              .icon {
-                font-size: 48px; 
-                margin-bottom: 16px;
-              }
-              h3 {
-                margin: 0 0 10px 0; 
-                font-size: 18px; 
-                font-weight: 600;
-              }
-              p {
-                margin: 0; 
-                opacity: 0.7;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="message">
-              <div class="icon">📄</div>
-              <h3>No HTML file found</h3>
-              <p>Create an HTML file to see the preview</p>
-            </div>
-          </body>
-          </html>
-        `
-        setPreview(noFileMessage)
-      }
-
-      setError("")
-    } catch (err) {
-      showNotification(`Preview error: ${err.message}`, "error")
-    }
   }
 
   // Enhanced save function
@@ -698,27 +733,26 @@ function CodeEditorContent() {
     setIsRunning(true)
     showNotification("Running code...")
 
-    // Force update preview
-    updatePreview()
-
+    // Force update preview immediately
     setTimeout(() => {
+      updatePreview()
       setIsRunning(false)
       showNotification("Code executed and preview updated!")
-    }, 1000)
+    }, 500)
   }
 
   return (
     <div
-      className={`min-h-screen p-2 sm:p-4 ${currentTheme.bg} ${currentTheme.text} transition-all duration-300 relative overflow-hidden`}
-      style={{ zoom: `${currentZoom}%` }}
+      className={`min-h-screen p-1 sm:p-4 ${currentTheme.bg} ${currentTheme.text} transition-all duration-300 relative overflow-hidden`}
+      style={{ zoom: isMobile ? "100%" : `${currentZoom}%` }}
     >
-      {/* Enhanced toolbar with proper alt text */}
-      <div className="flex flex-wrap gap-2 sm:gap-4 mb-4">
-        <div className="flex items-center space-x-1 sm:space-x-2">
+      {/* Enhanced toolbar with proper mobile layout */}
+      <div className="flex flex-wrap gap-1 sm:gap-4 mb-2 sm:mb-4">
+        <div className="flex items-center space-x-1">
           <Button
             variant="outline"
             size="icon"
-            className={`${currentTheme.button} h-8 w-8 sm:h-10 sm:w-10`}
+            className={`${currentTheme.button} h-8 w-8`}
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             title={isSidebarOpen ? "Hide file explorer sidebar" : "Show file explorer sidebar"}
             aria-label={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}
@@ -728,24 +762,24 @@ function CodeEditorContent() {
 
           <Button
             variant="outline"
-            className={`${currentTheme.button} text-xs sm:text-sm h-8 sm:h-10`}
+            className={`${currentTheme.button} text-xs h-8 px-2`}
             onClick={() => createNewFile("untitled.html", "html")}
-            title="Create a new HTML file (Ctrl+N)"
+            title="Create a new HTML file"
             aria-label="Create new file"
           >
-            <FileText className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden xs:inline">New</span>
+            <FileText className="h-4 w-4 mr-1" />
+            {!isMobile && <span>New</span>}
           </Button>
 
           <Button
             variant="outline"
-            className={`${currentTheme.button} text-xs sm:text-sm h-8 sm:h-10`}
+            className={`${currentTheme.button} text-xs h-8 px-2`}
             onClick={() => document.getElementById("file-upload")?.click()}
-            title="Upload files from your computer (Ctrl+O)"
+            title="Upload files from your computer"
             aria-label="Upload files"
           >
-            <Upload className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden xs:inline">Upload</span>
+            <Upload className="h-4 w-4 mr-1" />
+            {!isMobile && <span>Upload</span>}
           </Button>
           <input
             id="file-upload"
@@ -759,65 +793,8 @@ function CodeEditorContent() {
 
           <Button
             variant="outline"
-            className={`${currentTheme.button} text-xs sm:text-sm h-8 sm:h-10`}
-            onClick={exportFiles}
-            title="Download all files to your computer"
-            aria-label="Download files"
-          >
-            <Download className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden xs:inline">Download</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            className={`${currentTheme.button} text-xs sm:text-sm h-8 sm:h-10`}
-            onClick={saveCurrentFile}
-            title="Save current file (Ctrl+S)"
-            aria-label="Save file"
-          >
-            <Save className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden xs:inline">Save</span>
-          </Button>
-        </div>
-
-        <div className="flex items-center space-x-1 sm:space-x-2">
-          <Button
-            variant="outline"
             size="icon"
-            className={`${currentTheme.button} h-8 w-8 sm:h-10 sm:w-10`}
-            onClick={() => setIsSearchOpen(true)}
-            title="Open search and replace panel (Ctrl+F)"
-            aria-label="Search and replace"
-          >
-            <Search className="h-4 w-4" />
-          </Button>
-
-          <Button
-            variant="outline"
-            size="icon"
-            className={`${currentTheme.button} h-8 w-8 sm:h-10 sm:w-10`}
-            onClick={copyContent}
-            title="Copy current file content to clipboard"
-            aria-label="Copy content"
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
-
-          <Button
-            variant="outline"
-            size="icon"
-            className={`${currentTheme.button} h-8 w-8 sm:h-10 sm:w-10`}
-            onClick={pasteContent}
-            title="Paste content from clipboard"
-            aria-label="Paste content"
-          >
-            <Paste className="h-4 w-4" />
-          </Button>
-
-          <Button
-            variant="outline"
-            size="icon"
-            className={`${currentTheme.button} h-8 w-8 sm:h-10 sm:w-10`}
+            className={`${currentTheme.button} h-8 w-8`}
             onClick={runCode}
             disabled={isRunning}
             title="Execute the current code and update preview"
@@ -827,40 +804,11 @@ function CodeEditorContent() {
           </Button>
         </div>
 
-        <div className="flex items-center ml-auto space-x-1 sm:space-x-2">
-          <div className="flex items-center space-x-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className={`${currentTheme.button} h-8 w-8`}
-              onClick={zoomOut}
-              title="Zoom out interface (Ctrl+-)"
-              aria-label="Zoom out"
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span
-              className="text-xs font-mono min-w-[3rem] text-center"
-              aria-label={`Current zoom level: ${currentZoom}%`}
-            >
-              {currentZoom}%
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              className={`${currentTheme.button} h-8 w-8`}
-              onClick={zoomIn}
-              title="Zoom in interface (Ctrl++)"
-              aria-label="Zoom in"
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-          </div>
-
+        <div className="flex items-center ml-auto space-x-1">
           <Button
             variant="outline"
             size="icon"
-            className={`${currentTheme.button} h-8 w-8 sm:h-10 sm:w-10`}
+            className={`${currentTheme.button} h-8 w-8`}
             onClick={() => setIsPreviewVisible(!isPreviewVisible)}
             title={isPreviewVisible ? "Hide preview panel" : "Show preview panel"}
             aria-label={isPreviewVisible ? "Hide preview" : "Show preview"}
@@ -868,14 +816,10 @@ function CodeEditorContent() {
             {isPreviewVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
 
-          <div className={`text-xs sm:text-sm opacity-70 mr-2 hidden sm:block ${currentTheme.success}`}>
-            Last saved: {lastSaved.toLocaleTimeString()}
-          </div>
-
           <Button
             variant="outline"
             size="icon"
-            className={`${currentTheme.button} h-8 w-8 sm:h-10 sm:w-10`}
+            className={`${currentTheme.button} h-8 w-8`}
             onClick={() => setIsSettingsOpen(true)}
             title="Open editor settings and preferences"
             aria-label="Open settings"
@@ -889,7 +833,7 @@ function CodeEditorContent() {
       {(error || success) && (
         <Alert
           variant={success ? "default" : "destructive"}
-          className={`mb-2 sm:mb-4 ${
+          className={`mb-2 ${
             success
               ? appTheme === "dark"
                 ? "bg-emerald-900/20 border-emerald-500/50"
@@ -907,12 +851,14 @@ function CodeEditorContent() {
         </Alert>
       )}
 
-      {/* Main content grid */}
-      <div className="flex flex-col lg:flex-row gap-2 sm:gap-4 h-[calc(100vh-8rem)]">
+      {/* Main content - Mobile optimized layout */}
+      <div
+        className={`flex ${isMobile ? "flex-col" : "flex-col lg:flex-row"} gap-2 sm:gap-4 ${isMobile ? "h-auto" : "h-[calc(100vh-8rem)]"}`}
+      >
         {/* File explorer sidebar */}
         {isSidebarOpen && (
           <Card
-            className={`p-2 sm:p-4 ${currentTheme.primary} ${currentTheme.border} w-full lg:w-64 shrink-0 overflow-hidden`}
+            className={`p-2 ${currentTheme.primary} ${currentTheme.border} ${isMobile ? "w-full h-48" : "w-full lg:w-64"} shrink-0 overflow-auto`}
             role="complementary"
             aria-label="File explorer"
           >
@@ -930,21 +876,21 @@ function CodeEditorContent() {
         )}
 
         {/* Editor and Preview Grid */}
-        <div className="flex flex-col lg:flex-row gap-2 sm:gap-4 flex-1 overflow-hidden">
+        <div className={`flex ${isMobile ? "flex-col" : "flex-col lg:flex-row"} gap-2 sm:gap-4 flex-1 overflow-hidden`}>
           {/* Editor */}
           <Card
-            className={`p-2 sm:p-4 ${currentTheme.primary} ${currentTheme.border} flex-1 min-w-0 ${isPreviewFullscreen ? "hidden" : ""}`}
+            className={`p-2 ${currentTheme.primary} ${currentTheme.border} flex-1 min-w-0 ${isPreviewFullscreen ? "hidden" : ""} ${isMobile ? "h-auto" : ""}`}
             role="main"
             aria-label="Code editor"
           >
-            <div className="flex items-center justify-between mb-2 sm:mb-4">
-              <div className="flex items-center space-x-1 sm:space-x-2">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-1">
                 <Button
                   variant="outline"
                   size="icon"
                   className={`${currentTheme.button} h-7 w-7`}
                   onClick={undo}
-                  title="Undo last change (Ctrl+Z)"
+                  title="Undo last change"
                   aria-label="Undo"
                 >
                   <Undo className="h-4 w-4" />
@@ -954,7 +900,7 @@ function CodeEditorContent() {
                   size="icon"
                   className={`${currentTheme.button} h-7 w-7`}
                   onClick={redo}
-                  title="Redo last undone change (Ctrl+Y)"
+                  title="Redo last undone change"
                   aria-label="Redo"
                 >
                   <Redo className="h-4 w-4" />
@@ -964,35 +910,27 @@ function CodeEditorContent() {
                   size="icon"
                   className={`${currentTheme.button} h-7 w-7`}
                   onClick={clearAll}
-                  title="Clear all content in current file (Ctrl+Shift+D)"
+                  title="Clear all content in current file"
                   aria-label="Clear all content"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className={`${currentTheme.button} h-7 w-7`}
-                  onClick={resetZoom}
-                  title="Reset zoom to 100% (Ctrl+0)"
-                  aria-label="Reset zoom"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
               </div>
 
-              <div className={`text-xs sm:text-sm font-medium truncate ${currentTheme.accent} flex items-center`}>
-                <Code className="h-4 w-4 mr-2" />
-                {getCurrentFile()?.name || "No file selected"}
+              <div className={`text-xs font-medium truncate ${currentTheme.accent} flex items-center max-w-[50%]`}>
+                <Code className="h-4 w-4 mr-1" />
+                <span className="truncate">{getCurrentFile()?.name || "No file selected"}</span>
               </div>
             </div>
 
-            <div className={`w-full h-[calc(100%-2.5rem)] rounded-lg overflow-hidden`}>
+            <div
+              className={`w-full ${isMobile ? "h-auto min-h-[300px]" : "h-[calc(100%-2.5rem)]"} rounded-lg overflow-hidden`}
+            >
               {getCurrentFile() ? (
                 <SyntaxHighlighter
                   code={getCurrentFile()?.content || ""}
                   language={getCurrentFile()?.type || "html"}
-                  onChange={(newContent) => updateCurrentFile(newContent)}
+                  onChange={updateCurrentFile}
                   fontSize={editorSettings.fontSize}
                   lineNumbers={editorSettings.lineNumbers}
                   wordWrap={editorSettings.wordWrap}
@@ -1018,8 +956,8 @@ function CodeEditorContent() {
           {/* Preview */}
           {isPreviewVisible && (
             <Card
-              className={`p-2 sm:p-4 ${currentTheme.primary} ${currentTheme.border}
-              ${isPreviewFullscreen ? "fixed inset-2 sm:inset-4 z-50" : "flex-1 min-w-0"}`}
+              className={`p-2 ${currentTheme.primary} ${currentTheme.border}
+              ${isPreviewFullscreen ? "fixed inset-2 z-50" : `flex-1 min-w-0 ${isMobile ? "h-auto min-h-[300px]" : ""}`}`}
               role="complementary"
               aria-label="Code preview"
             >
@@ -1056,7 +994,7 @@ function CodeEditorContent() {
         <Button
           variant="outline"
           size="icon"
-          className={`${currentTheme.button} fixed top-4 right-4 z-50 lg:hidden`}
+          className={`${currentTheme.button} fixed top-4 right-4 z-50`}
           onClick={() => setIsPreviewFullscreen(false)}
           title="Exit fullscreen preview mode"
           aria-label="Exit fullscreen"
