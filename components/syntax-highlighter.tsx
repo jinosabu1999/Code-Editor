@@ -12,6 +12,8 @@ interface SyntaxHighlighterProps {
   wordWrap: boolean
   className?: string
   theme: string
+  // New callbacks for advanced UX
+  onCursorChange?: (pos: { line: number; column: number }) => void
 }
 
 export default function SyntaxHighlighter({
@@ -23,6 +25,7 @@ export default function SyntaxHighlighter({
   wordWrap,
   className = "",
   theme = "light",
+  onCursorChange,
 }: SyntaxHighlighterProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const lineNumbersRef = useRef<HTMLDivElement>(null)
@@ -40,41 +43,47 @@ export default function SyntaxHighlighter({
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  // PERFECT scroll synchronization - this is the key fix
+  // PERFECT scroll synchronization (numbers follow editor)
   const handleScroll = useCallback(() => {
     if (textareaRef.current && lineNumbersRef.current) {
       const textarea = textareaRef.current
       const lineNumbers = lineNumbersRef.current
-
-      // Perfect 1:1 synchronization
       lineNumbers.scrollTop = textarea.scrollTop
       lineNumbers.scrollLeft = textarea.scrollLeft
     }
   }, [])
 
-  // Enhanced scroll event handling with immediate sync
+  // Cursor position utility
+  const updateCursor = useCallback(() => {
+    if (!onCursorChange || !textareaRef.current) return
+    const el = textareaRef.current
+    const idx = el.selectionStart ?? 0
+    const before = el.value.slice(0, idx)
+    const lines = before.split("\n")
+    const line = lines.length
+    const column = (lines[lines.length - 1] || "").length + 1
+    onCursorChange({ line, column })
+  }, [onCursorChange])
+
+  // Event handlers & sync setup
   useEffect(() => {
     const textarea = textareaRef.current
-    if (textarea && lineNumbersRef.current) {
-      // Multiple event listeners for perfect sync
-      const events = ["scroll", "input", "keyup", "mouseup", "touchend"]
-
-      events.forEach((event) => {
-        textarea.addEventListener(event, handleScroll, { passive: true })
-      })
-
-      // Initial sync
+    if (!textarea) return
+    const events = ["scroll", "input", "keyup", "mouseup", "touchend"]
+    const onAny = () => {
       handleScroll()
-
-      return () => {
-        events.forEach((event) => {
-          textarea.removeEventListener(event, handleScroll)
-        })
-      }
+      updateCursor()
     }
-  }, [handleScroll, code])
+    events.forEach((ev) => textarea.addEventListener(ev, onAny, { passive: true } as any))
+    // initial
+    handleScroll()
+    updateCursor()
+    return () => {
+      events.forEach((ev) => textarea.removeEventListener(ev, onAny as any))
+    }
+  }, [handleScroll, updateCursor, code])
 
-  // Handle tab key and basic editing
+  // Handle tab/enter/brackets
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       const textarea = e.target as HTMLTextAreaElement
@@ -82,42 +91,33 @@ export default function SyntaxHighlighter({
 
       if (e.key === "Tab") {
         e.preventDefault()
-        const indent = "  " // 2 spaces
+        const indent = "  "
         const newValue = value.substring(0, selectionStart) + indent + value.substring(selectionEnd)
         onChange(newValue)
-
-        // Set cursor position after the tab
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           textarea.selectionStart = textarea.selectionEnd = selectionStart + indent.length
-          handleScroll() // Sync after change
-        }, 0)
+          handleScroll()
+          updateCursor()
+        })
       } else if (e.key === "Enter") {
-        // Auto-indentation
-        const lines = value.substring(0, selectionStart).split("\n")
-        const currentLine = lines[lines.length - 1]
+        const linesBefore = value.substring(0, selectionStart).split("\n")
+        const currentLine = linesBefore[linesBefore.length - 1]
         const indent = currentLine.match(/^\s*/)?.[0] || ""
-
-        // Add extra indent for opening braces
         const extraIndent =
           currentLine.trim().endsWith("{") || currentLine.trim().endsWith(":") || currentLine.trim().endsWith("(")
             ? "  "
             : ""
-
         const newIndent = indent + extraIndent
         const newValue = value.substring(0, selectionStart) + "\n" + newIndent + value.substring(selectionEnd)
-
         onChange(newValue)
-
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           textarea.selectionStart = textarea.selectionEnd = selectionStart + 1 + newIndent.length
-          handleScroll() // Sync after change
-        }, 0)
-
+          handleScroll()
+          updateCursor()
+        })
         e.preventDefault()
-      }
-      // Bracket matching
-      else if (["(", "[", "{", '"', "'", "`"].includes(e.key)) {
-        const closingBrackets = {
+      } else if (["(", "[", "{", '"', "'", "`"].includes(e.key)) {
+        const closingBrackets: Record<string, string> = {
           "(": ")",
           "[": "]",
           "{": "}",
@@ -125,36 +125,34 @@ export default function SyntaxHighlighter({
           "'": "'",
           "`": "`",
         }
-
         const closing = closingBrackets[e.key]
         if (closing && selectionStart === selectionEnd) {
           e.preventDefault()
           const newValue = value.substring(0, selectionStart) + e.key + closing + value.substring(selectionEnd)
           onChange(newValue)
-
-          setTimeout(() => {
+          requestAnimationFrame(() => {
             textarea.selectionStart = textarea.selectionEnd = selectionStart + 1
-            handleScroll() // Sync after change
-          }, 0)
+            handleScroll()
+            updateCursor()
+          })
         }
       }
     },
-    [onChange, handleScroll],
+    [onChange, updateCursor, handleScroll],
   )
 
-  // Generate line numbers with EXACT matching dimensions
+  // Generate line numbers matching dimensions
   const generateLineNumbers = useCallback(() => {
     const lines = code.split("\n")
-    const lineHeight = fontSize * 1.5 // Exact same line height as textarea
-    const paddingTop = isMobile ? 12 : 16 // Match textarea padding
+    const paddingTop = isMobile ? 12 : 16
 
     return (
       <div
         style={{
-          lineHeight: "1.5", // Exact same as textarea
-          paddingTop: `${paddingTop}px`, // Match textarea padding
-          fontSize: `${fontSize}px`, // Same font size for perfect alignment
-          fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace", // Same font
+          lineHeight: "1.5",
+          paddingTop: `${paddingTop}px`,
+          fontSize: `${fontSize}px`,
+          fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
         }}
       >
         {lines.map((_, i) => (
@@ -166,13 +164,11 @@ export default function SyntaxHighlighter({
               textAlign: "right",
               paddingRight: isMobile ? "8px" : "12px",
               minWidth: isMobile ? "2.5rem" : "3rem",
-              height: `${lineHeight}px`, // Exact line height match
+              height: `${fontSize * 1.5}px`,
               display: "flex",
-              alignItems: "flex-start", // Top alignment like textarea
+              alignItems: "flex-start",
               justifyContent: "flex-end",
               boxSizing: "border-box",
-              margin: 0, // No margin
-              border: 0, // No border
             }}
           >
             {i + 1}
@@ -182,24 +178,23 @@ export default function SyntaxHighlighter({
     )
   }, [code, fontSize, theme, isMobile])
 
-  // Auto-resize textarea and sync dimensions
+  // Auto-resize for mobile
   useEffect(() => {
-    if (textareaRef.current && lineNumbersRef.current) {
-      const textarea = textareaRef.current
-      const lineNumbers = lineNumbersRef.current
+    if (!textareaRef.current || !lineNumbersRef.current) return
+    const textarea = textareaRef.current
+    const lineNums = lineNumbersRef.current
 
-      if (isMobile) {
-        // On mobile, ensure textarea can scroll and shows all content
-        textarea.style.height = "auto"
-        const scrollHeight = Math.max(textarea.scrollHeight, 300)
-        textarea.style.height = scrollHeight + "px"
-        lineNumbers.style.height = scrollHeight + "px"
-      }
-
-      // Sync scroll position after resize
-      setTimeout(handleScroll, 0)
+    if (isMobile) {
+      textarea.style.height = "auto"
+      const scrollHeight = Math.max(textarea.scrollHeight, 300)
+      textarea.style.height = scrollHeight + "px"
+      lineNums.style.height = scrollHeight + "px"
     }
-  }, [code, isMobile, handleScroll])
+    requestAnimationFrame(() => {
+      handleScroll()
+      updateCursor()
+    })
+  }, [code, isMobile, handleScroll, updateCursor])
 
   return (
     <div
@@ -214,22 +209,22 @@ export default function SyntaxHighlighter({
             : "border-gray-300"
       }`}
       style={{
-        backgroundColor: theme === "dark" ? "#111827" : "#FFFFFF",
+        backgroundColor: theme === "dark" ? "#0b1220" : "#FFFFFF",
         minHeight: isMobile ? "300px" : "200px",
         height: isMobile ? "auto" : "100%",
         maxHeight: isMobile ? "60vh" : "100%",
         display: "flex",
         flexDirection: "column",
+        boxShadow: theme === "dark" ? "0 0 40px rgba(59,130,246,0.12)" : "0 0 28px rgba(59,130,246,0.08)",
       }}
     >
       <div className={`flex flex-1 ${isMobile ? "overflow-auto" : "overflow-hidden"}`}>
-        {/* Line numbers with perfect synchronization */}
         {lineNumbers && (
           <div
             ref={lineNumbersRef}
-            className="flex-shrink-0 border-r border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+            className="flex-shrink-0 border-r border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-slate-900/60"
             style={{
-              overflow: "hidden", // Hide scrollbars but allow programmatic scrolling
+              overflow: "hidden",
               width: isMobile ? "3rem" : "4rem",
               position: "relative",
             }}
@@ -238,35 +233,34 @@ export default function SyntaxHighlighter({
           </div>
         )}
 
-        {/* Textarea container */}
         <div className="flex-1 relative overflow-hidden">
           <textarea
             ref={textareaRef}
             value={code}
             onChange={(e) => {
               onChange(e.target.value)
-              // Sync scroll after content change
-              setTimeout(handleScroll, 0)
+              requestAnimationFrame(() => {
+                handleScroll()
+                updateCursor()
+              })
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            onScroll={handleScroll} // Direct scroll handler
+            onScroll={handleScroll}
             className="w-full h-full resize-none bg-transparent border-0 outline-none"
             style={{
               fontSize: `${isMobile ? Math.max(fontSize - 2, 12) : fontSize}px`,
-              lineHeight: "1.5", // Exact match with line numbers
-              padding: isMobile ? "12px" : "16px", // Match line numbers padding
+              lineHeight: "1.5",
+              padding: isMobile ? "12px" : "16px",
               whiteSpace: wordWrap ? "pre-wrap" : "pre",
               wordBreak: wordWrap ? "break-word" : "normal",
-              color: theme === "dark" ? "#E2E8F0" : "#1E293B",
+              color: theme === "dark" ? "#E2E8F0" : "#1F2937",
               caretColor: theme === "dark" ? "#60A5FA" : "#2563EB",
               fontFamily: "ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
               overflow: "auto",
               minHeight: isMobile ? "300px" : "100%",
               maxHeight: isMobile ? "60vh" : "none",
-              margin: 0, // No margin
-              border: 0, // No border
             }}
             spellCheck="false"
             autoComplete="off"
@@ -277,14 +271,13 @@ export default function SyntaxHighlighter({
         </div>
       </div>
 
-      {/* Enhanced focus indicator */}
       {isFocused && (
         <div
           className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium shadow-md"
           style={{
-            backgroundColor: theme === "dark" ? "#1F2937" : "#F3F4F6",
+            backgroundColor: theme === "dark" ? "#0d1a2b" : "#F3F4F6",
             color: theme === "dark" ? "#60A5FA" : "#2563EB",
-            border: `1px solid ${theme === "dark" ? "#374151" : "#E5E7EB"}`,
+            border: `1px solid ${theme === "dark" ? "#1f2a44" : "#E5E7EB"}`,
             zIndex: 3,
           }}
         >

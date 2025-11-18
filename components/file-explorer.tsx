@@ -4,7 +4,7 @@ import { useState } from "react"
 import { type FileItem, getChildrenOf } from "@/utils/file-system"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { File, Folder, FolderOpen, Plus, Trash2, Edit, Save, X, ChevronRight, ChevronDown, Copy } from "lucide-react"
+import { File, Folder, FolderOpen, Plus, Trash2, Edit, Save, X, ChevronRight, ChevronDown, Copy } from 'lucide-react'
 
 interface FileExplorerProps {
   files: FileItem[]
@@ -100,36 +100,32 @@ export default function FileExplorer({
     return (
       <>
         {children.map((item) => (
-          <div key={item.id} className="mb-1">
+          <div key={item.id} className="mb-0.5">
             {item.type === "folder" ? (
               <div>
                 <div
-                  className={`flex items-center group rounded-lg p-2 transition-all duration-200 hover:bg-gradient-to-r ${
-                    theme.text === "text-gray-100"
-                      ? "hover:from-indigo-600/20 hover:to-purple-600/20"
-                      : "hover:from-indigo-50 hover:to-purple-50"
-                  }`}
-                  style={{ marginLeft: `${depth * 16}px` }}
+                  className={`flex items-center group rounded-md px-2 py-1 transition-colors duration-200 hover:bg-muted/50`}
+                  style={{ marginLeft: `${depth * 12}px` }}
                 >
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 p-0 hover:bg-transparent"
+                    className="h-5 w-5 p-0 hover:bg-transparent text-muted-foreground"
                     onClick={() => toggleFolder(item.id)}
                   >
                     {expandedFolders.has(item.id) ? (
-                      <ChevronDown className="h-4 w-4 text-indigo-500" />
+                      <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-indigo-500" />
+                      <ChevronRight className="h-3.5 w-3.5" />
                     )}
                   </Button>
 
                   {editingFile === item.id ? (
-                    <div className="flex items-center flex-1 ml-2">
+                    <div className="flex items-center flex-1 ml-1">
                       <Input
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        className={`h-7 py-0 px-2 text-sm ${theme.primary} ${theme.text} border ${theme.border} rounded-md`}
+                        className="h-6 py-0 px-2 text-xs bg-background border-border rounded-sm"
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === "Enter") completeRename(item.id)
@@ -139,7 +135,7 @@ export default function FileExplorer({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 p-0 ml-1 hover:bg-emerald-500/20 rounded-md"
+                        className="h-6 w-6 p-0 ml-1 hover:bg-emerald-500/10 rounded-sm"
                         onClick={() => completeRename(item.id)}
                       >
                         <Save className="h-3 w-3 text-emerald-500" />
@@ -147,63 +143,63 @@ export default function FileExplorer({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 p-0 ml-1 hover:bg-red-500/20 rounded-md"
+                        className="h-6 w-6 p-0 ml-1 hover:bg-red-500/10 rounded-sm"
                         onClick={cancelRename}
                       >
                         <X className="h-3 w-3 text-red-500" />
                       </Button>
                     </div>
                   ) : (
-                    <div className="flex items-center flex-1 ml-2">
+                    <div className="flex items-center flex-1 ml-1 group/item">
                       <Button
                         variant="ghost"
-                        className="h-7 px-2 py-0 justify-start text-sm hover:bg-transparent flex-1 font-medium"
+                        className="h-6 px-1 py-0 justify-start text-sm hover:bg-transparent flex-1 font-medium text-foreground/80"
                         onClick={() => toggleFolder(item.id)}
                       >
                         {expandedFolders.has(item.id) ? (
-                          <FolderOpen className="h-4 w-4 mr-2 shrink-0 text-amber-500" />
+                          <FolderOpen className="h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground" />
                         ) : (
-                          <Folder className="h-4 w-4 mr-2 shrink-0 text-amber-500" />
+                          <Folder className="h-3.5 w-3.5 mr-2 shrink-0 text-muted-foreground" />
                         )}
-                        <span className={`truncate ${theme.text}`}>{item.name}</span>
+                        <span className="truncate">{item.name}</span>
                       </Button>
 
-                      <div className="opacity-0 group-hover:opacity-100 flex transition-opacity duration-200 ml-2">
+                      <div className="opacity-0 group-hover/item:opacity-100 flex transition-opacity duration-200 ml-1">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 p-0 hover:bg-blue-500/20 rounded-md"
+                          className="h-5 w-5 p-0 hover:bg-muted rounded-sm"
                           onClick={() => startNewItem(item.id, "file")}
                           title="Add File"
                         >
-                          <Plus className="h-3 w-3 text-blue-500" />
+                          <Plus className="h-3 w-3 text-muted-foreground" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 p-0 ml-1 hover:bg-yellow-500/20 rounded-md"
+                          className="h-5 w-5 p-0 ml-0.5 hover:bg-muted rounded-sm"
                           onClick={() => startRenameFile(item.id, item.name)}
                           title="Rename"
                         >
-                          <Edit className="h-3 w-3 text-yellow-500" />
+                          <Edit className="h-3 w-3 text-muted-foreground" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 p-0 ml-1 hover:bg-green-500/20 rounded-md"
+                          className="h-5 w-5 p-0 ml-0.5 hover:bg-muted rounded-sm"
                           onClick={() => onDuplicateFile?.(item.id)}
                           title="Duplicate"
                         >
-                          <Copy className="h-3 w-3 text-green-500" />
+                          <Copy className="h-3 w-3 text-muted-foreground" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 p-0 ml-1 hover:bg-red-500/20 rounded-md"
+                          className="h-5 w-5 p-0 ml-0.5 hover:bg-red-500/10 rounded-sm"
                           onClick={() => onDeleteFile(item.id)}
                           title="Delete"
                         >
-                          <Trash2 className="h-3 w-3 text-red-500" />
+                          <Trash2 className="h-3 w-3 text-muted-foreground hover:text-red-500" />
                         </Button>
                       </div>
                     </div>
@@ -211,19 +207,19 @@ export default function FileExplorer({
                 </div>
 
                 {expandedFolders.has(item.id) && (
-                  <div className="mt-1">
+                  <div className="mt-0.5">
                     {renderFileTree(item.id, depth + 1)}
 
                     {newItemParent === item.id && (
                       <div
-                        className="flex items-center mt-2 p-2 rounded-lg bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-900/20 dark:to-indigo-900/20"
-                        style={{ marginLeft: `${(depth + 1) * 16}px` }}
+                        className="flex items-center mt-1 p-1 rounded-md bg-muted/30"
+                        style={{ marginLeft: `${(depth + 1) * 12}px` }}
                       >
                         <Input
                           value={newItemName}
                           onChange={(e) => setNewItemName(e.target.value)}
                           placeholder={`New ${newItemType}...`}
-                          className={`h-7 py-0 px-2 text-sm ${theme.primary} ${theme.text} border ${theme.border} rounded-md`}
+                          className="h-6 py-0 px-2 text-xs bg-background border-border rounded-sm"
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === "Enter") createNewItem()
@@ -233,7 +229,7 @@ export default function FileExplorer({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 p-0 ml-2 hover:bg-emerald-500/20 rounded-md"
+                          className="h-6 w-6 p-0 ml-1 hover:bg-emerald-500/10 rounded-sm"
                           onClick={createNewItem}
                         >
                           <Save className="h-3 w-3 text-emerald-500" />
@@ -241,7 +237,7 @@ export default function FileExplorer({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 p-0 ml-1 hover:bg-red-500/20 rounded-md"
+                          className="h-6 w-6 p-0 ml-1 hover:bg-red-500/10 rounded-sm"
                           onClick={cancelNewItem}
                         >
                           <X className="h-3 w-3 text-red-500" />
@@ -253,23 +249,19 @@ export default function FileExplorer({
               </div>
             ) : (
               <div
-                className={`flex items-center group rounded-lg p-2 transition-all duration-200 ${
+                className={`flex items-center group rounded-md px-2 py-1 transition-colors duration-200 ${
                   activeFileId === item.id
-                    ? theme.text === "text-gray-100"
-                      ? "bg-gradient-to-r from-cyan-600/30 to-blue-600/30 border-l-4 border-cyan-400 shadow-lg"
-                      : "bg-gradient-to-r from-cyan-100 to-blue-100 border-l-4 border-cyan-500 shadow-md"
-                    : theme.text === "text-gray-100"
-                      ? "hover:bg-gradient-to-r hover:from-slate-700/50 hover:to-slate-600/50"
-                      : "hover:bg-gradient-to-r hover:from-slate-50 hover:to-slate-100"
+                    ? "bg-muted text-foreground font-medium"
+                    : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
                 }`}
-                style={{ marginLeft: `${depth * 16}px` }}
+                style={{ marginLeft: `${depth * 12}px` }}
               >
                 {editingFile === item.id ? (
                   <div className="flex items-center flex-1">
                     <Input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className={`h-7 py-0 px-2 text-sm ${theme.primary} ${theme.text} border ${theme.border} rounded-md`}
+                      className="h-6 py-0 px-2 text-xs bg-background border-border rounded-sm"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter") completeRename(item.id)
@@ -279,7 +271,7 @@ export default function FileExplorer({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 p-0 ml-2 hover:bg-emerald-500/20 rounded-md"
+                      className="h-6 w-6 p-0 ml-1 hover:bg-emerald-500/10 rounded-sm"
                       onClick={() => completeRename(item.id)}
                     >
                       <Save className="h-3 w-3 text-emerald-500" />
@@ -287,70 +279,50 @@ export default function FileExplorer({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 p-0 ml-1 hover:bg-red-500/20 rounded-md"
+                      className="h-6 w-6 p-0 ml-1 hover:bg-red-500/10 rounded-sm"
                       onClick={cancelRename}
                     >
                       <X className="h-3 w-3 text-red-500" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex items-center flex-1">
+                  <div className="flex items-center flex-1 group/item">
                     <Button
                       variant="ghost"
-                      className="h-7 px-2 py-0 justify-start text-sm flex-1 transition-all duration-200 hover:bg-transparent font-medium"
+                      className="h-6 px-1 py-0 justify-start text-sm flex-1 transition-none hover:bg-transparent font-normal"
                       onClick={() => onFileSelect(item.id)}
                     >
-                      <File
-                        className={`h-4 w-4 mr-2 shrink-0 ${
-                          item.type === "html"
-                            ? "text-orange-500"
-                            : item.type === "css"
-                              ? "text-blue-500"
-                              : item.type === "js"
-                                ? "text-yellow-500"
-                                : "text-gray-500"
-                        }`}
-                      />
-                      <span
-                        className={`truncate ${
-                          activeFileId === item.id
-                            ? theme.text === "text-gray-100"
-                              ? "text-cyan-100 font-semibold"
-                              : "text-cyan-700 font-semibold"
-                            : theme.text
-                        }`}
-                      >
-                        {item.name}
-                      </span>
+                      <File className="h-3.5 w-3.5 mr-2 shrink-0 opacity-70" />
+                      <span className="truncate">{item.name}</span>
                     </Button>
 
-                    <div className="opacity-0 group-hover:opacity-100 flex transition-opacity duration-200 ml-2">
+                    <div className="opacity-0 group-hover/item:opacity-100 flex transition-opacity duration-200 ml-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 p-0 hover:bg-yellow-500/20 rounded-md"
+                        className="h-5 w-5 p-0 hover:bg-muted rounded-sm"
                         onClick={() => startRenameFile(item.id, item.name)}
                         title="Rename"
                       >
-                        <Edit className="h-3 w-3 text-yellow-500" />
+                        <Edit className="h-3 w-3 text-muted-foreground" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 p-0 ml-1 hover:bg-green-500/20 rounded-md"
+                        className="h-5 w-5 p-0 ml-0.5 hover:bg-muted rounded-sm"
                         onClick={() => onDuplicateFile?.(item.id)}
                         title="Duplicate"
                       >
-                        <Copy className="h-3 w-3 text-green-500" />
+                        <Copy className="h-3 w-3 text-muted-foreground" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 p-0 ml-1 hover:bg-red-500/20 rounded-md"
+                        className="h-5 w-5 p-0 ml-0.5 hover:bg-red-500/10 rounded-sm"
                         onClick={() => onDeleteFile(item.id)}
                         title="Delete"
                       >
-                        <Trash2 className="h-3 w-3 text-red-500" />
+                        <Trash2 className="h-3 w-3 text-muted-foreground hover:text-red-500" />
                       </Button>
                     </div>
                   </div>
@@ -362,14 +334,14 @@ export default function FileExplorer({
 
         {newItemParent === parentId && (
           <div
-            className="flex items-center mt-2 p-2 rounded-lg bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-900/20 dark:to-indigo-900/20"
-            style={{ marginLeft: `${depth * 16}px` }}
+            className="flex items-center mt-1 p-1 rounded-md bg-muted/30"
+            style={{ marginLeft: `${depth * 12}px` }}
           >
             <Input
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               placeholder={`New ${newItemType}...`}
-              className={`h-7 py-0 px-2 text-sm ${theme.primary} ${theme.text} border ${theme.border} rounded-md`}
+              className="h-6 py-0 px-2 text-xs bg-background border-border rounded-sm"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") createNewItem()
@@ -379,7 +351,7 @@ export default function FileExplorer({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 p-0 ml-2 hover:bg-emerald-500/20 rounded-md"
+              className="h-6 w-6 p-0 ml-1 hover:bg-emerald-500/10 rounded-sm"
               onClick={createNewItem}
             >
               <Save className="h-3 w-3 text-emerald-500" />
@@ -387,7 +359,7 @@ export default function FileExplorer({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 p-0 ml-1 hover:bg-red-500/20 rounded-md"
+              className="h-6 w-6 p-0 ml-1 hover:bg-red-500/10 rounded-sm"
               onClick={cancelNewItem}
             >
               <X className="h-3 w-3 text-red-500" />
@@ -399,37 +371,8 @@ export default function FileExplorer({
   }
 
   return (
-    <div className="p-3">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className={`font-bold text-base ${theme.accent} flex items-center`}>
-          <Folder className="h-5 w-5 mr-2 text-indigo-500" />
-          Files
-        </h3>
-        <div className="flex space-x-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 p-0 hover:bg-blue-500/20 relative rounded-lg shadow-sm border border-blue-200 dark:border-blue-700"
-            onClick={() => startNewItem(null, "file")}
-            title="New File"
-          >
-            <File className="h-4 w-4 text-blue-500" />
-            <Plus className="h-3 w-3 absolute -right-1 -bottom-1 bg-blue-500 text-white rounded-full shadow-md" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 p-0 hover:bg-amber-500/20 relative rounded-lg shadow-sm border border-amber-200 dark:border-amber-700"
-            onClick={() => startNewItem(null, "folder")}
-            title="New Folder"
-          >
-            <Folder className="h-4 w-4 text-amber-500" />
-            <Plus className="h-3 w-3 absolute -right-1 -bottom-1 bg-amber-500 text-white rounded-full shadow-md" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="overflow-y-auto max-h-[calc(100vh-12rem)] space-y-1">{renderFileTree(null)}</div>
+    <div className="p-2">
+      <div className="overflow-y-auto max-h-[calc(100vh-12rem)] space-y-0.5">{renderFileTree(null)}</div>
     </div>
   )
 }

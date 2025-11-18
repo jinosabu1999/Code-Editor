@@ -3,12 +3,16 @@ import "./globals.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+})
 
 export const metadata: Metadata = {
-  title: "Code Editor",
-  description: "A responsive code editor that works on all devices",
-    generator: 'v0.dev'
+  title: "Code Editor - Modern Development Environment",
+  description: "A sleek, futuristic code editor with real-time preview and advanced features",
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -17,11 +21,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       </head>
-      <body className={inter.className}>{children}</body>
+      <body className={`${inter.className} font-sans antialiased`}>{children}</body>
     </html>
   )
 }
