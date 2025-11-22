@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import {
   Menu,
   SettingsIcon,
@@ -11,23 +11,21 @@ import {
   Play,
   ChevronRight,
   Save,
-  RotateCcw,
-  RotateCw,
   Palette,
   Type,
   Clock,
-  WrapText,
-  Download,
-  RefreshCw,
-  Info,
-  HelpCircle,
-  Shield,
   MoreVertical,
-  ArrowLeft,
   X,
-  FileText,
   Edit2,
   Trash2,
+  Undo,
+  Redo,
+  ChevronUp,
+  ChevronDown,
+  File,
+  AlignLeft,
+  ToggleLeft,
+  FileCode,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -65,6 +63,19 @@ const formatTimeAgo = (date: Date) => {
   if (days < 30) return `${days}d ago`
   const months = Math.floor(days / 30)
   return `${months}mo ago`
+}
+
+const formatRelativeTime = (date: Date) => {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d`
+  const weeks = Math.floor(days / 7)
+  return `${weeks}w`
 }
 
 const getLanguageFromExtension = (filename: string): string => {
@@ -117,8 +128,14 @@ export default function CodeEditorApp() {
   const [history, setHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
 
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [searchMatches, setSearchMatches] = useState<number[]>([])
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const [editorSearchQuery, setEditorSearchQuery] = useState("")
+  const editorRef = useRef<HTMLTextAreaElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   // --- Load from localStorage ---
   useEffect(() => {
@@ -240,12 +257,15 @@ export default function CodeEditorApp() {
     }
   }
 
-  const openProject = (project: Project) => {
-    setCurrentProject(project)
-    if (project.files.length > 0) {
-      setCurrentFileId(project.files[0].id)
+  const openProject = (projectId: string) => {
+    const project = projects.find((p) => p.id === projectId)
+    if (project) {
+      setCurrentProject(project)
+      if (project.files.length > 0) {
+        setCurrentFileId(project.files[0].id)
+      }
+      setCurrentView("editor")
     }
-    setCurrentView("editor")
   }
 
   const createFile = () => {
@@ -407,92 +427,218 @@ export default function CodeEditorApp() {
     return matchesSearch && matchesLanguage
   })
 
+  const getProjectStats = () => {
+    const total = projects.length
+    const htmlFiles = projects.reduce((acc, p) => acc + p.files.filter((f) => f.name.endsWith(".html")).length, 0)
+    const cssFiles = projects.reduce((acc, p) => acc + p.files.filter((f) => f.name.endsWith(".css")).length, 0)
+    const jsFiles = projects.reduce((acc, p) => acc + p.files.filter((f) => f.name.endsWith(".js")).length, 0)
+    const totalLines = projects.reduce(
+      (acc, p) => acc + p.files.reduce((sum, f) => sum + f.content.split("\n").length, 0),
+      0,
+    )
+    return { total, htmlFiles, cssFiles, jsFiles, totalLines }
+  }
+
+  const searchInEditor = useCallback(() => {
+    const currentFile = getCurrentFile()
+    if (!editorSearchQuery || !currentFile) return
+
+    const content = currentFile.content.toLowerCase()
+    const query = editorSearchQuery.toLowerCase()
+    const matches: number[] = []
+
+    let index = content.indexOf(query)
+    while (index !== -1) {
+      matches.push(index)
+      index = content.indexOf(query, index + 1)
+    }
+
+    setSearchMatches(matches)
+    setCurrentMatchIndex(0)
+
+    if (matches.length > 0 && editorRef.current) {
+      editorRef.current.focus()
+      editorRef.current.setSelectionRange(matches[0], matches[0] + editorSearchQuery.length)
+      editorRef.current.scrollTop = (matches[0] / content.length) * editorRef.current.scrollHeight
+    }
+  }, [editorSearchQuery])
+
+  const jumpToMatch = useCallback(
+    (direction: "next" | "prev") => {
+      const currentFile = getCurrentFile()
+      if (searchMatches.length === 0 || !editorRef.current || !currentFile) return
+
+      let newIndex = currentMatchIndex
+      if (direction === "next") {
+        newIndex = (currentMatchIndex + 1) % searchMatches.length
+      } else {
+        newIndex = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length
+      }
+
+      setCurrentMatchIndex(newIndex)
+      const match = searchMatches[newIndex]
+      editorRef.current.focus()
+      editorRef.current.setSelectionRange(match, match + editorSearchQuery.length)
+      editorRef.current.scrollTop = (match / currentFile.content.length) * editorRef.current.scrollHeight
+    },
+    [searchMatches, currentMatchIndex, editorSearchQuery],
+  )
+
+  useEffect(() => {
+    if (editorSearchQuery) {
+      searchInEditor()
+    } else {
+      setSearchMatches([])
+      setCurrentMatchIndex(0)
+    }
+  }, [editorSearchQuery, searchInEditor])
+
+  const updateFileContent = (fileId: string, content: string) => {
+    if (!currentProject) return
+
+    const updatedFiles = currentProject.files.map((f) => (f.id === fileId ? { ...f, content } : f))
+    const updatedProject = { ...currentProject, files: updatedFiles, updatedAt: new Date() }
+
+    setCurrentProject(updatedProject)
+    setProjects((prev) => prev.map((p) => (p.id === currentProject.id ? updatedProject : p)))
+
+    // Update history
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(content)
+    if (newHistory.length > 50) newHistory.shift()
+    setHistory(newHistory)
+    setHistoryIndex(newHistory.length - 1)
+  }
+
+  const saveCurrentFile = () => {
+    if (!currentProject) return
+    setProjects((prev) => prev.map((p) => (p.id === currentProject.id ? currentProject : p)))
+  }
+
+  const createNewProject = () => {
+    const name = prompt("Project name:")
+    if (name) createProject(name, "JavaScript")
+  }
+
   // --- Render Functions ---
+  // Add app name at top and remove search
   const renderDashboard = () => (
-    <div className="flex-1 overflow-auto p-4 md:p-6">
-      {/* Search Bar */}
-      <div className="mb-6 relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search projects..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-12 pr-4 py-3 rounded-xl bg-accent/50 border border-border focus:outline-none focus:ring-2 focus:ring-primary"
-        />
+    <div className="flex-1 overflow-auto pb-20">
+      <div className="p-6 pb-8 glass border-b border-border/50 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 animate-pulse-slow" />
+        <div className="relative z-10">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent animate-gradient">
+            NexusIDE
+          </h1>
+          <p className="text-sm text-muted-foreground mt-2">Your futuristic code editor</p>
+        </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        <button
-          onClick={() => {
-            const name = prompt("Project name:")
-            if (name) createProject(name, "JavaScript")
-          }}
-          className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 hover:border-primary/40 transition-all"
-        >
-          <Plus className="w-8 h-8 text-primary mb-2" />
-          <h3 className="font-semibold">New File</h3>
-          <p className="text-sm text-muted-foreground">Start a new file</p>
-        </button>
-
-        <button
-          onClick={() => setCurrentView("projects")}
-          className="flex flex-col items-center justify-center p-6 rounded-2xl bg-gradient-to-br from-secondary/20 to-secondary/5 border border-secondary/20 hover:border-secondary/40 transition-all"
-        >
-          <Search className="w-8 h-8 text-secondary mb-2" />
-          <h3 className="font-semibold">Search</h3>
-          <p className="text-sm text-muted-foreground">Find code</p>
-        </button>
-      </div>
-
-      {/* My Projects */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-4">My Projects</h2>
-
-        {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <FolderGit2 className="w-16 h-16 text-muted-foreground mb-4 opacity-50" />
-            <h3 className="text-xl font-semibold mb-2">No projects yet</h3>
-            <p className="text-muted-foreground mb-6">Create your first project to get started</p>
-            <button
-              onClick={() => {
-                const name = prompt("Project name:")
-                if (name) createProject(name, "JavaScript")
-              }}
-              className="px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity"
-            >
-              Create Project
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {projects.slice(0, 4).map((project) => (
-              <button
-                key={project.id}
-                onClick={() => openProject(project)}
-                className="relative group overflow-hidden rounded-2xl bg-gradient-to-br from-card to-card/50 border border-border hover:border-primary/50 transition-all p-6 text-left"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center text-3xl font-bold text-primary">
-                    {project.name.charAt(0).toUpperCase()}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (confirm(`Delete ${project.name}?`)) deleteProject(project.id)
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-destructive/20 rounded-lg"
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </button>
-                </div>
-                <h3 className="font-semibold text-lg mb-1">{project.name}</h3>
-                <p className="text-sm text-muted-foreground">Updated {formatTimeAgo(project.updatedAt)}</p>
-              </button>
+      <div className="p-6 space-y-6">
+        {projects.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: "Projects", value: getProjectStats().total, icon: FolderGit2, color: "text-primary" },
+              { label: "HTML Files", value: getProjectStats().htmlFiles, icon: FileCode, color: "text-orange-500" },
+              { label: "CSS Files", value: getProjectStats().cssFiles, icon: FileCode, color: "text-blue-500" },
+              { label: "JS Files", value: getProjectStats().jsFiles, icon: FileCode, color: "text-yellow-500" },
+            ].map((stat) => (
+              <div key={stat.label} className="glass-panel p-4 rounded-xl">
+                <stat.icon className={cn("w-5 h-5 mb-2", stat.color)} />
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="text-xs text-muted-foreground">{stat.label}</div>
+              </div>
             ))}
           </div>
         )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={createNewProject}
+            className="glass-panel p-6 rounded-2xl hover:bg-primary/10 hover:border-primary/50 transition-all duration-300 group relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10">
+              <Plus className="w-10 h-10 text-primary mb-3 group-hover:scale-110 group-hover:rotate-90 transition-all duration-300" />
+              <h3 className="font-semibold text-left">New Project</h3>
+              <p className="text-sm text-muted-foreground text-left mt-1">Start coding now</p>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setCurrentView("projects")}
+            className="glass-panel p-6 rounded-2xl hover:bg-secondary/10 hover:border-secondary/50 transition-all duration-300 group relative overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-secondary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10">
+              <FolderGit2 className="w-10 h-10 text-secondary mb-3 group-hover:scale-110 transition-all duration-300" />
+              <h3 className="font-semibold text-left">My Projects</h3>
+              <p className="text-sm text-muted-foreground text-left mt-1">Browse all</p>
+            </div>
+          </button>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Recent Projects</h2>
+            {projects.length > 3 && (
+              <button onClick={() => setCurrentView("projects")} className="text-sm text-primary hover:underline">
+                View all
+              </button>
+            )}
+          </div>
+
+          {projects.length === 0 ? (
+            <div className="glass-panel p-12 rounded-2xl text-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5" />
+              <div className="relative z-10">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <FolderGit2 className="w-10 h-10 text-primary" />
+                </div>
+                <h3 className="font-semibold mb-2">No projects yet</h3>
+                <p className="text-sm text-muted-foreground mb-4">Create your first project to get started</p>
+                <button
+                  onClick={createNewProject}
+                  className="btn-primary text-sm px-6 py-2 rounded-xl inline-flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create Project
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {projects.slice(0, 3).map((project) => (
+                <button
+                  key={project.id}
+                  onClick={() => openProject(project.id)}
+                  className="glass-panel p-4 rounded-2xl hover:bg-primary/5 hover:border-primary/30 transition-all duration-300 text-left group relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="relative z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-lg">
+                        {project.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold group-hover:text-primary transition-colors">{project.name}</h3>
+                        <div className="flex items-center gap-3 mt-1">
+                          <p className="text-xs text-muted-foreground">
+                            {project.files.length} {project.files.length === 1 ? "file" : "files"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Updated {formatRelativeTime(project.updatedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-2 transition-all" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -549,7 +695,7 @@ export default function CodeEditorApp() {
             <div
               key={project.id}
               className="glass-panel p-4 rounded-2xl hover:border-primary/50 transition-all cursor-pointer"
-              onClick={() => openProject(project)}
+              onClick={() => openProject(project.id)}
             >
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-lg">{project.name}</h3>
@@ -588,162 +734,428 @@ export default function CodeEditorApp() {
     </div>
   )
 
+  // Collapsible sidebar with smooth transitions
+  // Expand sidebar button when collapsed
+  // Search bar with match navigation
   const renderEditor = () => {
-    const currentFile = getCurrentFile()
+    if (!currentProject) {
+      return (
+        <div className="flex-1 flex items-center justify-center pb-20">
+          <div className="text-center">
+            <Code2 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No project selected</p>
+          </div>
+        </div>
+      )
+    }
+
+    const currentFile = currentProject.files.find((f) => f.id === currentFileId)
 
     return (
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="glass p-3 md:p-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowSidebar(!showSidebar)} className="p-2 hover:bg-accent rounded-lg md:hidden">
-              <Menu className="w-5 h-5" />
-            </button>
-            <span className="font-mono text-sm">{currentFile?.name || "No file selected"}</span>
-          </div>
+      <div className="flex-1 flex flex-col overflow-hidden pb-20">
+        {/* Editor Header */}
+        <div className="glass p-4 flex items-center gap-2 flex-shrink-0">
           <button
-            onClick={runCode}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="p-2 hover:bg-accent rounded-lg md:hidden"
           >
-            <Play className="w-4 h-4" />
-            <span className="hidden md:inline">Run</span>
+            <Menu className="w-5 h-5" />
+          </button>
+          <h2 className="font-semibold flex-1 truncate">{currentProject.name}</h2>
+          <button onClick={saveCurrentFile} className="p-2 hover:bg-accent rounded-lg" title="Save">
+            <Save className="w-4 h-4" />
+          </button>
+          <button onClick={handleUndo} className="p-2 hover:bg-accent rounded-lg" title="Undo">
+            <Undo className="w-4 h-4" />
+          </button>
+          <button onClick={handleRedo} className="p-2 hover:bg-accent rounded-lg" title="Redo">
+            <Redo className="w-4 h-4" />
+          </button>
+          <button onClick={runCode} className="p-2 hover:bg-primary/20 text-primary rounded-lg" title="Run">
+            <Play className="w-4 h-4 fill-current" />
           </button>
         </div>
 
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
           <div
             className={cn(
-              "w-64 bg-card border-r border-border overflow-auto transition-all",
-              showSidebar ? "translate-x-0" : "-translate-x-full md:translate-x-0",
-              "absolute md:relative h-full z-10 md:z-0",
+              "bg-card border-r border-border transition-all duration-300 ease-in-out flex-shrink-0 relative",
+              sidebarCollapsed ? "w-0" : "w-64",
+              "overflow-hidden",
             )}
           >
-            <div className="p-4">
+            <div className="p-4 w-64">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold">Files</h3>
-                <button onClick={() => setShowNewFileDialog(true)} className="p-1 hover:bg-accent rounded-lg">
-                  <Plus className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setShowNewFileDialog(true)} className="p-1.5 hover:bg-accent rounded-lg">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setSidebarCollapsed(true)}
+                    className="p-1.5 hover:bg-accent rounded-lg"
+                    title="Close sidebar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              {currentProject?.files.map((file) => (
-                <div key={file.id} className="group">
-                  {editingFileId === file.id ? (
-                    <div className="flex items-center gap-1 mb-1">
-                      <input
-                        type="text"
-                        value={editingFileName}
-                        onChange={(e) => setEditingFileName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") renameFile(file.id, editingFileName)
-                          if (e.key === "Escape") {
-                            setEditingFileId(null)
-                            setEditingFileName("")
-                          }
-                        }}
-                        className="flex-1 px-2 py-1 text-sm bg-accent rounded border border-primary"
-                        autoFocus
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => setCurrentFileId(file.id)}
-                      className={cn(
-                        "flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer mb-1 group",
-                        currentFileId === file.id ? "bg-primary/20 text-primary" : "hover:bg-accent",
-                      )}
-                    >
-                      <div className="flex items-center gap-2 flex-1">
-                        <FileText className="w-4 h-4" />
-                        <span className="text-sm truncate">{file.name}</span>
+              <div className="space-y-1">
+                {currentProject.files.map((file) => (
+                  <div key={file.id} className="group">
+                    {editingFileId === file.id ? (
+                      <div className="flex items-center gap-1 mb-1">
+                        <input
+                          type="text"
+                          value={editingFileName}
+                          onChange={(e) => setEditingFileName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") renameFile(file.id, editingFileName)
+                            if (e.key === "Escape") {
+                              setEditingFileId(null)
+                              setEditingFileName("")
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm bg-accent rounded border border-primary"
+                          autoFocus
+                        />
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                    ) : (
+                      <div
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all",
+                          currentFileId === file.id
+                            ? "bg-primary/10 text-primary"
+                            : "hover:bg-accent text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <File className="w-4 h-4 flex-shrink-0" />
+                        <span className="flex-1 text-sm truncate" onClick={() => setCurrentFileId(file.id)}>
+                          {file.name}
+                        </span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             setEditingFileId(file.id)
                             setEditingFileName(file.name)
                           }}
-                          className="p-1 hover:bg-accent rounded"
+                          className="p-1.5 hover:bg-primary/20 rounded opacity-100 text-primary"
+                          title="Rename"
                         >
-                          <Edit2 className="w-3 h-3" />
+                          <Edit2 className="w-5 h-5" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (confirm(`Delete ${file.name}?`)) deleteFile(file.id)
+                            deleteFile(file.id)
                           }}
-                          className="p-1 hover:bg-destructive/20 rounded"
+                          className="p-1.5 hover:bg-destructive/20 rounded opacity-100 text-destructive"
+                          title="Delete"
                         >
-                          <Trash2 className="w-3 h-3 text-destructive" />
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
+          {sidebarCollapsed && (
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 bg-primary text-primary-foreground rounded-r-lg shadow-lg hover:pl-3 transition-all"
+              title="Open sidebar"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+
           {/* Editor Area */}
-          <div className="flex-1 overflow-auto bg-background">
-            <textarea
-              ref={textareaRef}
-              value={currentFile?.content || ""}
-              onChange={(e) => handleCodeChange(e.target.value)}
-              placeholder="Start coding..."
-              className="w-full h-full p-4 bg-transparent resize-none focus:outline-none font-mono"
-              style={{
-                fontSize: `${fontSize}px`,
-                lineHeight: "1.6",
-                whiteSpace: wordWrap ? "pre-wrap" : "pre",
-                wordWrap: wordWrap ? "break-word" : "normal",
-              }}
-            />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {currentFile ? (
+              <>
+                <div className="p-2 bg-accent/50 border-b border-border flex items-center gap-2">
+                  <Search className="w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={editorSearchQuery}
+                    onChange={(e) => setEditorSearchQuery(e.target.value)}
+                    placeholder="Search in file..."
+                    className="flex-1 bg-transparent outline-none text-sm"
+                  />
+                  {searchMatches.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {currentMatchIndex + 1} of {searchMatches.length}
+                      </span>
+                      <button
+                        onClick={() => jumpToMatch("prev")}
+                        className="p-1 hover:bg-accent rounded"
+                        title="Previous match"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => jumpToMatch("next")}
+                        className="p-1 hover:bg-accent rounded"
+                        title="Next match"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setEditorSearchQuery("")}
+                        className="p-1 hover:bg-accent rounded"
+                        title="Clear search"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 relative overflow-hidden font-mono" style={{ fontSize: `${fontSize}px` }}>
+                  {/* Line Numbers */}
+                  <div className="absolute left-0 top-0 bottom-0 w-12 bg-muted/30 text-muted-foreground text-right pr-2 pt-3 select-none overflow-hidden">
+                    {currentFile.content.split("\n").map((_, i) => (
+                      <div key={i} style={{ height: `${fontSize * 1.5}px` }}>
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Code Editor */}
+                  <textarea
+                    ref={editorRef}
+                    value={currentFile.content}
+                    onChange={(e) => updateFileContent(currentFileId, e.target.value)}
+                    className="absolute inset-0 pl-14 pr-4 pt-3 pb-3 bg-transparent resize-none outline-none text-foreground"
+                    style={{
+                      lineHeight: `${fontSize * 1.5}px`,
+                      wordWrap: wordWrap ? "break-word" : "normal",
+                      whiteSpace: wordWrap ? "pre-wrap" : "pre",
+                    }}
+                    spellCheck={false}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <File className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No file selected</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Removed General section
+  const renderSettings = () => (
+    <div className="flex-1 overflow-auto pb-20">
+      <div className="p-6 space-y-6">
+        <h1 className="text-2xl font-bold">Settings</h1>
+
+        {/* Theme & Appearance */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">Theme & Appearance</h2>
+
+          <div className="glass-panel p-4 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Palette className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-medium">App Theme</p>
+                  <p className="text-sm text-muted-foreground">{appTheme === "dark" ? "Dark" : "Light"}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAppTheme(appTheme === "dark" ? "light" : "dark")}
+                className={cn(
+                  "relative w-14 h-7 rounded-full transition-colors",
+                  appTheme === "dark" ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <div
+                  className={cn(
+                    "absolute top-1 w-5 h-5 rounded-full bg-white transition-transform",
+                    appTheme === "dark" ? "left-8" : "left-1",
+                  )}
+                />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="glass p-2 flex items-center justify-between border-t border-border">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleUndo}
-              disabled={historyIndex <= 0}
-              className="p-2 hover:bg-accent rounded-lg disabled:opacity-50"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleRedo}
-              disabled={historyIndex >= history.length - 1}
-              className="p-2 hover:bg-accent rounded-lg disabled:opacity-50"
-            >
-              <RotateCw className="w-4 h-4" />
-            </button>
-            <button onClick={handleSaveFile} className="p-2 hover:bg-accent rounded-lg">
-              <Save className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                const query = prompt("Search for:")
-                if (query && textareaRef.current) {
-                  const text = textareaRef.current.value
-                  const index = text.indexOf(query)
-                  if (index !== -1) {
-                    textareaRef.current.focus()
-                    textareaRef.current.setSelectionRange(index, index + query.length)
-                  }
-                }
-              }}
-              className="p-2 hover:bg-accent rounded-lg"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{currentFile?.language}</span>
-            <span>•</span>
-            <span>UTF-8</span>
+        {/* Editor Preferences */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-primary uppercase tracking-wider">Editor Preferences</h2>
+
+          <div className="glass-panel p-4 rounded-xl space-y-4">
+            {/* Font Size */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Type className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-medium">Font Size</p>
+                  <p className="text-sm text-muted-foreground">{fontSize}px</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setFontSize(Math.max(10, fontSize - 2))}
+                  className="w-8 h-8 rounded-lg bg-muted hover:bg-accent flex items-center justify-center"
+                >
+                  -
+                </button>
+                <button
+                  onClick={() => setFontSize(Math.min(24, fontSize + 2))}
+                  className="w-8 h-8 rounded-lg bg-muted hover:bg-accent flex items-center justify-center"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Word Wrap */}
+            <div className="flex items-center justify-between pt-4 border-t border-border">
+              <div className="flex items-center gap-3">
+                <AlignLeft className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-medium">Word Wrap</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setWordWrap(!wordWrap)}
+                className={cn("relative w-14 h-7 rounded-full transition-colors", wordWrap ? "bg-primary" : "bg-muted")}
+              >
+                <div
+                  className={cn(
+                    "absolute top-1 w-5 h-5 rounded-full bg-white transition-transform",
+                    wordWrap ? "left-8" : "left-1",
+                  )}
+                />
+              </button>
+            </div>
+
+            {/* Auto Indent */}
+            <div className="flex items-center justify-between pt-4 border-t border-border">
+              <div className="flex items-center gap-3">
+                <ToggleLeft className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-medium">Auto-indent</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAutoIndent(!autoIndent)}
+                className={cn(
+                  "relative w-14 h-7 rounded-full transition-colors",
+                  autoIndent ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <div
+                  className={cn(
+                    "absolute top-1 w-5 h-5 rounded-full bg-white transition-transform",
+                    autoIndent ? "left-8" : "left-1",
+                  )}
+                />
+              </button>
+            </div>
+
+            {/* Auto Save */}
+            <div className="flex items-center justify-between pt-4 border-t border-border">
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-medium">Automatic Save</p>
+                  <p className="text-sm text-muted-foreground">On every {autoSaveInterval} seconds</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAutoSave(!autoSave)}
+                className={cn("relative w-14 h-7 rounded-full transition-colors", autoSave ? "bg-primary" : "bg-muted")}
+              >
+                <div
+                  className={cn(
+                    "absolute top-1 w-5 h-5 rounded-full bg-white transition-transform",
+                    autoSave ? "left-8" : "left-1",
+                  )}
+                />
+              </button>
+            </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className={appTheme}>
+      <div className="min-h-screen bg-background text-foreground flex flex-col">
+        {/* Main Content */}
+        {currentView === "dashboard" && renderDashboard()}
+        {currentView === "projects" && renderProjects()}
+        {currentView === "editor" && renderEditor()}
+        {currentView === "settings" && renderSettings()}
+
+        <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-50">
+          <div className="flex items-center justify-around p-2">
+            <button
+              onClick={() => setCurrentView("dashboard")}
+              className={cn(
+                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
+                currentView === "dashboard" ? "text-primary bg-primary/10" : "text-muted-foreground",
+              )}
+            >
+              <Home className="w-5 h-5" />
+              <span className="text-xs font-medium">Dashboard</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentView("projects")}
+              className={cn(
+                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
+                currentView === "projects" ? "text-primary bg-primary/10" : "text-muted-foreground",
+              )}
+            >
+              <FolderGit2 className="w-5 h-5" />
+              <span className="text-xs font-medium">Projects</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (currentProject) {
+                  setCurrentView("editor")
+                } else {
+                  alert("Please select or create a project first")
+                }
+              }}
+              className={cn(
+                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
+                currentView === "editor" ? "text-primary bg-primary/10" : "text-muted-foreground",
+              )}
+            >
+              <Code2 className="w-5 h-5" />
+              <span className="text-xs font-medium">Editor</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentView("settings")}
+              className={cn(
+                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
+                currentView === "settings" ? "text-primary bg-primary/10" : "text-muted-foreground",
+              )}
+            >
+              <SettingsIcon className="w-5 h-5" />
+              <span className="text-xs font-medium">Settings</span>
+            </button>
+          </div>
+        </nav>
 
         {/* New File Dialog */}
         {showNewFileDialog && (
@@ -797,299 +1209,6 @@ export default function CodeEditorApp() {
           </div>
         )}
       </div>
-    )
-  }
-
-  const renderSettings = () => (
-    <div className="flex-1 overflow-auto">
-      <div className="glass p-4 md:p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => setCurrentView("dashboard")} className="p-2 hover:bg-accent rounded-lg">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-2xl font-bold">Settings</h1>
-        </div>
-      </div>
-
-      <div className="p-4 md:p-6 space-y-6 max-w-2xl">
-        {/* Theme & Appearance */}
-        <div>
-          <h2 className="text-sm font-bold text-primary mb-4 uppercase tracking-wider">Theme & Appearance</h2>
-          <div className="space-y-3">
-            <div className="glass-panel p-4 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Palette className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">App Theme</div>
-                  <div className="text-sm text-muted-foreground">{appTheme === "dark" ? "Dark" : "Light"}</div>
-                </div>
-              </div>
-              <button
-                onClick={() => setAppTheme(appTheme === "dark" ? "light" : "dark")}
-                className="px-4 py-2 bg-accent hover:bg-accent/80 rounded-lg"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Editor Preferences */}
-        <div>
-          <h2 className="text-sm font-bold text-primary mb-4 uppercase tracking-wider">Editor Preferences</h2>
-          <div className="space-y-3">
-            <div className="glass-panel p-4 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1">
-                <Type className="w-5 h-5 text-muted-foreground" />
-                <div className="flex-1">
-                  <div className="font-medium">Font Size</div>
-                  <div className="text-sm text-muted-foreground">{fontSize}px</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setFontSize(Math.max(10, fontSize - 2))}
-                  className="w-8 h-8 flex items-center justify-center bg-accent hover:bg-accent/80 rounded-lg"
-                >
-                  -
-                </button>
-                <button
-                  onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                  className="w-8 h-8 flex items-center justify-center bg-accent hover:bg-accent/80 rounded-lg"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-
-            <div className="glass-panel p-4 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="text-xl">{"{ }"}</div>
-                <div>
-                  <div className="font-medium">Auto-indent</div>
-                </div>
-              </div>
-              <button
-                onClick={() => setAutoIndent(!autoIndent)}
-                className={cn("w-12 h-7 rounded-full transition-all relative", autoIndent ? "bg-primary" : "bg-muted")}
-              >
-                <div
-                  className={cn(
-                    "absolute top-1 w-5 h-5 bg-white rounded-full transition-all",
-                    autoIndent ? "left-6" : "left-1",
-                  )}
-                />
-              </button>
-            </div>
-
-            <div className="glass-panel p-4 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <WrapText className="w-5 h-5 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">Word Wrap</div>
-                </div>
-              </div>
-              <button
-                onClick={() => setWordWrap(!wordWrap)}
-                className={cn("w-12 h-7 rounded-full transition-all relative", wordWrap ? "bg-primary" : "bg-muted")}
-              >
-                <div
-                  className={cn(
-                    "absolute top-1 w-5 h-5 bg-white rounded-full transition-all",
-                    wordWrap ? "left-6" : "left-1",
-                  )}
-                />
-              </button>
-            </div>
-
-            <div className="glass-panel p-4 rounded-xl">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <Clock className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <div className="font-medium">Automatic Save</div>
-                    <div className="text-sm text-muted-foreground">On every {autoSaveInterval} seconds</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAutoSave(!autoSave)}
-                  className={cn("w-12 h-7 rounded-full transition-all relative", autoSave ? "bg-primary" : "bg-muted")}
-                >
-                  <div
-                    className={cn(
-                      "absolute top-1 w-5 h-5 bg-white rounded-full transition-all",
-                      autoSave ? "left-6" : "left-1",
-                    )}
-                  />
-                </button>
-              </div>
-              {autoSave && (
-                <input
-                  type="range"
-                  min="1"
-                  max="30"
-                  value={autoSaveInterval}
-                  onChange={(e) => setAutoSaveInterval(Number(e.target.value))}
-                  className="w-full"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Data Management */}
-        <div>
-          <h2 className="text-sm font-bold text-primary mb-4 uppercase tracking-wider">Data Management</h2>
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                const dataStr = JSON.stringify({
-                  projects,
-                  settings: { appTheme, fontSize, autoIndent, wordWrap, autoSave, autoSaveInterval },
-                })
-                const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
-                const link = document.createElement("a")
-                link.setAttribute("href", dataUri)
-                link.setAttribute("download", "coder-backup.json")
-                link.click()
-              }}
-              className="glass-panel p-4 rounded-xl flex items-center justify-between w-full hover:border-primary/50 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <Download className="w-5 h-5 text-muted-foreground" />
-                <div className="text-left">
-                  <div className="font-medium">Export Settings</div>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5" />
-            </button>
-
-            <button
-              onClick={() => {
-                if (confirm("Reset all settings to default? This cannot be undone.")) {
-                  setAppTheme("dark")
-                  setFontSize(14)
-                  setAutoIndent(false)
-                  setWordWrap(true)
-                  setAutoSave(true)
-                  setAutoSaveInterval(5)
-                }
-              }}
-              className="glass-panel p-4 rounded-xl flex items-center justify-between w-full hover:border-destructive/50 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <RefreshCw className="w-5 h-5 text-destructive" />
-                <div className="text-left">
-                  <div className="font-medium text-destructive">Reset to Default Settings</div>
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* General */}
-        <div>
-          <h2 className="text-sm font-bold text-primary mb-4 uppercase tracking-wider">General</h2>
-          <div className="space-y-3">
-            <button className="glass-panel p-4 rounded-xl flex items-center justify-between w-full hover:border-primary/50 transition-all">
-              <div className="flex items-center gap-3">
-                <Info className="w-5 h-5 text-muted-foreground" />
-                <div className="text-left">
-                  <div className="font-medium">About</div>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5" />
-            </button>
-
-            <button className="glass-panel p-4 rounded-xl flex items-center justify-between w-full hover:border-primary/50 transition-all">
-              <div className="flex items-center gap-3">
-                <HelpCircle className="w-5 h-5 text-muted-foreground" />
-                <div className="text-left">
-                  <div className="font-medium">Help & Feedback</div>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5" />
-            </button>
-
-            <button className="glass-panel p-4 rounded-xl flex items-center justify-between w-full hover:border-primary/50 transition-all">
-              <div className="flex items-center gap-3">
-                <Shield className="w-5 h-5 text-muted-foreground" />
-                <div className="text-left">
-                  <div className="font-medium">Privacy Policy</div>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="h-screen flex flex-col bg-background text-foreground">
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {currentView === "dashboard" && renderDashboard()}
-        {currentView === "projects" && renderProjects()}
-        {currentView === "editor" && renderEditor()}
-        {currentView === "settings" && renderSettings()}
-      </div>
-
-      {/* Bottom Navigation */}
-      <nav className="glass border-t border-border">
-        <div className="flex items-center justify-around p-2">
-          <button
-            onClick={() => setCurrentView("dashboard")}
-            className={cn(
-              "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-              currentView === "dashboard" ? "text-primary bg-primary/10" : "text-muted-foreground",
-            )}
-          >
-            <Home className="w-5 h-5" />
-            <span className="text-xs font-medium">Dashboard</span>
-          </button>
-
-          <button
-            onClick={() => setCurrentView("projects")}
-            className={cn(
-              "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-              currentView === "projects" ? "text-primary bg-primary/10" : "text-muted-foreground",
-            )}
-          >
-            <FolderGit2 className="w-5 h-5" />
-            <span className="text-xs font-medium">Projects</span>
-          </button>
-
-          <button
-            onClick={() => {
-              if (currentProject) {
-                setCurrentView("editor")
-              } else {
-                alert("Please select or create a project first")
-              }
-            }}
-            className={cn(
-              "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-              currentView === "editor" ? "text-primary bg-primary/10" : "text-muted-foreground",
-            )}
-          >
-            <Code2 className="w-5 h-5" />
-            <span className="text-xs font-medium">Editor</span>
-          </button>
-
-          <button
-            onClick={() => setCurrentView("settings")}
-            className={cn(
-              "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-              currentView === "settings" ? "text-primary bg-primary/10" : "text-muted-foreground",
-            )}
-          >
-            <SettingsIcon className="w-5 h-5" />
-            <span className="text-xs font-medium">Settings</span>
-          </button>
-        </div>
-      </nav>
     </div>
   )
 }
