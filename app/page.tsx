@@ -2,10 +2,8 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import {
   Menu,
-  SettingsIcon,
   Home,
   FolderGit2,
-  Code2,
   Plus,
   Search,
   Play,
@@ -26,6 +24,9 @@ import {
   AlignLeft,
   ToggleLeft,
   FileCode,
+  FolderOpen,
+  Code,
+  Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -524,121 +525,126 @@ export default function CodeEditorApp() {
   // Add app name at top and remove search
   const renderDashboard = () => (
     <div className="flex-1 overflow-auto pb-20">
-      <div className="p-6 pb-8 glass border-b border-border/50 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 animate-pulse-slow" />
-        <div className="relative z-10">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent animate-gradient">
-            NexusIDE
-          </h1>
-          <p className="text-sm text-muted-foreground mt-2">Your futuristic code editor</p>
-        </div>
-      </div>
-
       <div className="p-6 space-y-6">
-        {projects.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: "Projects", value: getProjectStats().total, icon: FolderGit2, color: "text-primary" },
-              { label: "HTML Files", value: getProjectStats().htmlFiles, icon: FileCode, color: "text-orange-500" },
-              { label: "CSS Files", value: getProjectStats().cssFiles, icon: FileCode, color: "text-blue-500" },
-              { label: "JS Files", value: getProjectStats().jsFiles, icon: FileCode, color: "text-yellow-500" },
-            ].map((stat) => (
-              <div key={stat.label} className="glass-panel p-4 rounded-xl">
-                <stat.icon className={cn("w-5 h-5 mb-2", stat.color)} />
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="text-xs text-muted-foreground">{stat.label}</div>
-              </div>
-            ))}
+        <div className="flex items-center gap-4">
+          <img src="/logo.png" alt="NexLoft" className="w-16 h-16 rounded-2xl" />
+          <div>
+            <h1 className="text-3xl font-bold">NexLoft</h1>
+            <p className="text-muted-foreground">Where Beginners Become Builders</p>
           </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={createNewProject}
-            className="glass-panel p-6 rounded-2xl hover:bg-primary/10 hover:border-primary/50 transition-all duration-300 group relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10">
-              <Plus className="w-10 h-10 text-primary mb-3 group-hover:scale-110 group-hover:rotate-90 transition-all duration-300" />
-              <h3 className="font-semibold text-left">New Project</h3>
-              <p className="text-sm text-muted-foreground text-left mt-1">Start coding now</p>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setCurrentView("projects")}
-            className="glass-panel p-6 rounded-2xl hover:bg-secondary/10 hover:border-secondary/50 transition-all duration-300 group relative overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-secondary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10">
-              <FolderGit2 className="w-10 h-10 text-secondary mb-3 group-hover:scale-110 transition-all duration-300" />
-              <h3 className="font-semibold text-left">My Projects</h3>
-              <p className="text-sm text-muted-foreground text-left mt-1">Browse all</p>
-            </div>
-          </button>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">Recent Projects</h2>
-            {projects.length > 3 && (
-              <button onClick={() => setCurrentView("projects")} className="text-sm text-primary hover:underline">
-                View all
-              </button>
-            )}
+        {/* Statistics */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="glass-panel p-4 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <FolderOpen className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{projects.length}</p>
+                <p className="text-sm text-muted-foreground">Projects</p>
+              </div>
+            </div>
           </div>
 
-          {projects.length === 0 ? (
-            <div className="glass-panel p-12 rounded-2xl text-center relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5" />
-              <div className="relative z-10">
-                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <FolderGit2 className="w-10 h-10 text-primary" />
-                </div>
-                <h3 className="font-semibold mb-2">No projects yet</h3>
-                <p className="text-sm text-muted-foreground mb-4">Create your first project to get started</p>
-                <button
-                  onClick={createNewProject}
-                  className="btn-primary text-sm px-6 py-2 rounded-xl inline-flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Create Project
-                </button>
+          <div className="glass-panel p-4 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <FileCode className="w-5 h-5 text-primary" />
               </div>
+              <div>
+                <p className="text-2xl font-bold">{projects.reduce((acc, p) => acc + p.files.length, 0)}</p>
+                <p className="text-sm text-muted-foreground">Files</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="space-y-3">
+          <h2 className="font-semibold">Quick Actions</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => {
+                const name = prompt("Enter project name:")
+                if (name) createProject(name, "JavaScript")
+              }}
+              className="glass-panel p-4 rounded-xl hover:bg-accent transition-colors text-left"
+            >
+              <Plus className="w-6 h-6 text-primary mb-2" />
+              <p className="font-medium">New Project</p>
+              <p className="text-sm text-muted-foreground">Start a new project</p>
+            </button>
+          </div>
+        </div>
+
+        {/* Projects Section */}
+        <div className="space-y-3">
+          <h2 className="font-semibold">My Projects</h2>
+          {projects.length === 0 ? (
+            <div className="glass-panel p-8 rounded-xl text-center">
+              <FolderOpen className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground mb-4">No projects yet</p>
+              <button
+                onClick={() => {
+                  const name = prompt("Enter project name:")
+                  if (name) createProject(name, "JavaScript")
+                }}
+                className="btn-primary px-6 py-2 rounded-lg font-medium"
+              >
+                Create Your First Project
+              </button>
             </div>
           ) : (
             <div className="grid gap-3">
               {projects.slice(0, 3).map((project) => (
                 <button
                   key={project.id}
-                  onClick={() => openProject(project.id)}
-                  className="glass-panel p-4 rounded-2xl hover:bg-primary/5 hover:border-primary/30 transition-all duration-300 text-left group relative overflow-hidden"
+                  onClick={() => {
+                    setCurrentProject(project)
+                    setCurrentFileId(project.files[0]?.id || "")
+                    setCurrentView("editor")
+                  }}
+                  className="glass-panel p-4 rounded-xl hover:bg-accent transition-colors text-left"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-lg">
-                        {project.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold group-hover:text-primary transition-colors">{project.name}</h3>
-                        <div className="flex items-center gap-3 mt-1">
-                          <p className="text-xs text-muted-foreground">
-                            {project.files.length} {project.files.length === 1 ? "file" : "files"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Updated {formatRelativeTime(project.updatedAt)}
-                          </p>
-                        </div>
-                      </div>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold mb-1">{project.name}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {project.files.length} files • Updated {formatTimeAgo(project.updatedAt)}
+                      </p>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-2 transition-all" />
+                    <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                   </div>
                 </button>
               ))}
             </div>
           )}
         </div>
+
+        {/* Recent Activity */}
+        {projects.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="font-semibold">Recent Activity</h2>
+            <div className="glass-panel p-4 rounded-xl space-y-3">
+              {projects
+                .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+                .slice(0, 5)
+                .map((project) => (
+                  <div key={project.id} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <FileCode className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{project.name}</p>
+                      <p className="text-sm text-muted-foreground">{formatRelativeTime(project.updatedAt)}</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -741,9 +747,34 @@ export default function CodeEditorApp() {
     if (!currentProject) {
       return (
         <div className="flex-1 flex items-center justify-center pb-20">
-          <div className="text-center">
-            <Code2 className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No project selected</p>
+          <div className="text-center space-y-4 p-6">
+            <FileCode className="w-16 h-16 text-muted-foreground mx-auto" />
+            <h2 className="text-xl font-semibold">No Project Selected</h2>
+            <p className="text-muted-foreground">Create a new project or select an existing one to start coding</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  const name = prompt("Enter project name:")
+                  if (name) {
+                    createProject(name, "JavaScript") // Use the main createProject function
+                    setCurrentView("editor")
+                  }
+                }}
+                className="btn-primary px-6 py-2 rounded-lg font-medium"
+              >
+                <Plus className="w-4 h-4 inline mr-2" />
+                Create Project
+              </button>
+              {projects.length > 0 && (
+                <button
+                  onClick={() => setCurrentView("projects")}
+                  className="glass-panel px-6 py-2 rounded-lg font-medium hover:bg-accent"
+                >
+                  <FolderOpen className="w-4 h-4 inline mr-2" />
+                  Select Project
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )
@@ -918,7 +949,10 @@ export default function CodeEditorApp() {
 
                 <div className="flex-1 relative overflow-hidden font-mono" style={{ fontSize: `${fontSize}px` }}>
                   {/* Line Numbers */}
-                  <div className="absolute left-0 top-0 bottom-0 w-12 bg-muted/30 text-muted-foreground text-right pr-2 pt-3 select-none overflow-hidden">
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-12 bg-muted/30 text-muted-foreground text-right pr-2 pt-3 select-none overflow-hidden"
+                    style={{ fontSize: `${fontSize}px`, lineHeight: `${fontSize * 1.5}px` }}
+                  >
                     {currentFile.content.split("\n").map((_, i) => (
                       <div key={i} style={{ height: `${fontSize * 1.5}px` }}>
                         {i + 1}
@@ -931,8 +965,30 @@ export default function CodeEditorApp() {
                     ref={editorRef}
                     value={currentFile.content}
                     onChange={(e) => updateFileContent(currentFileId, e.target.value)}
+                    onKeyDown={(e) => {
+                      // Directly handleKeyDown here
+                      if (!autoIndent) return
+
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        const textarea = e.currentTarget
+                        const start = textarea.selectionStart
+                        const value = textarea.value
+                        const lineStart = value.lastIndexOf("\n", start - 1) + 1
+                        const line = value.substring(lineStart, start)
+                        const indent = line.match(/^\s*/)?.[0] || ""
+
+                        const newValue = value.substring(0, start) + "\n" + indent + value.substring(start)
+                        updateFileContent(currentFileId, newValue)
+
+                        setTimeout(() => {
+                          textarea.selectionStart = textarea.selectionEnd = start + indent.length + 1
+                        }, 0)
+                      }
+                    }}
                     className="absolute inset-0 pl-14 pr-4 pt-3 pb-3 bg-transparent resize-none outline-none text-foreground"
                     style={{
+                      fontSize: `${fontSize}px`,
                       lineHeight: `${fontSize * 1.5}px`,
                       wordWrap: wordWrap ? "break-word" : "normal",
                       whiteSpace: wordWrap ? "pre-wrap" : "pre",
@@ -1095,120 +1151,115 @@ export default function CodeEditorApp() {
   )
 
   return (
-    <div className={appTheme}>
-      <div className="min-h-screen bg-background text-foreground flex flex-col">
-        {/* Main Content */}
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      {/* Main Content */}
+      <div className="flex-1 overflow-hidden">
         {currentView === "dashboard" && renderDashboard()}
         {currentView === "projects" && renderProjects()}
         {currentView === "editor" && renderEditor()}
         {currentView === "settings" && renderSettings()}
+      </div>
 
-        <nav className="fixed bottom-0 left-0 right-0 glass border-t border-border z-50">
-          <div className="flex items-center justify-around p-2">
-            <button
-              onClick={() => setCurrentView("dashboard")}
-              className={cn(
-                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-                currentView === "dashboard" ? "text-primary bg-primary/10" : "text-muted-foreground",
-              )}
-            >
-              <Home className="w-5 h-5" />
-              <span className="text-xs font-medium">Dashboard</span>
-            </button>
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 glass-panel border-t border-border z-50">
+        <div className="flex items-center justify-around h-16">
+          <button
+            onClick={() => setCurrentView("dashboard")}
+            className={cn(
+              "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors",
+              currentView === "dashboard" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-xs">Dashboard</span>
+          </button>
 
-            <button
-              onClick={() => setCurrentView("projects")}
-              className={cn(
-                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-                currentView === "projects" ? "text-primary bg-primary/10" : "text-muted-foreground",
-              )}
-            >
-              <FolderGit2 className="w-5 h-5" />
-              <span className="text-xs font-medium">Projects</span>
-            </button>
+          <button
+            onClick={() => setCurrentView("projects")}
+            className={cn(
+              "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors",
+              currentView === "projects" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <FolderOpen className="w-5 h-5" />
+            <span className="text-xs">Projects</span>
+          </button>
 
-            <button
-              onClick={() => {
-                if (currentProject) {
-                  setCurrentView("editor")
-                } else {
-                  alert("Please select or create a project first")
+          <button
+            onClick={() => setCurrentView("editor")}
+            className={cn(
+              "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors",
+              currentView === "editor" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <Code className="w-5 h-5" />
+            <span className="text-xs">Editor</span>
+          </button>
+
+          <button
+            onClick={() => setCurrentView("settings")}
+            className={cn(
+              "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors",
+              currentView === "settings" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-xs">Settings</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* New File Dialog */}
+      {showNewFileDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-2xl flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Create New File</h3>
+              <button
+                onClick={() => {
+                  setShowNewFileDialog(false)
+                  setNewFileName("")
+                }}
+                className="p-2 hover:bg-accent rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <input
+              type="text"
+              value={newFileName}
+              onChange={(e) => setNewFileName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") createFile()
+                if (e.key === "Escape") {
+                  setShowNewFileDialog(false)
+                  setNewFileName("")
                 }
               }}
-              className={cn(
-                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-                currentView === "editor" ? "text-primary bg-primary/10" : "text-muted-foreground",
-              )}
-            >
-              <Code2 className="w-5 h-5" />
-              <span className="text-xs font-medium">Editor</span>
-            </button>
-
-            <button
-              onClick={() => setCurrentView("settings")}
-              className={cn(
-                "flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all",
-                currentView === "settings" ? "text-primary bg-primary/10" : "text-muted-foreground",
-              )}
-            >
-              <SettingsIcon className="w-5 h-5" />
-              <span className="text-xs font-medium">Settings</span>
-            </button>
-          </div>
-        </nav>
-
-        {/* New File Dialog */}
-        {showNewFileDialog && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-2xl flex items-center justify-center z-50 p-4">
-            <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Create New File</h3>
-                <button
-                  onClick={() => {
-                    setShowNewFileDialog(false)
-                    setNewFileName("")
-                  }}
-                  className="p-2 hover:bg-accent rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <input
-                type="text"
-                value={newFileName}
-                onChange={(e) => setNewFileName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") createFile()
-                  if (e.key === "Escape") {
-                    setShowNewFileDialog(false)
-                    setNewFileName("")
-                  }
+              placeholder="filename.html, style.css, script.js..."
+              className="w-full px-4 py-3 bg-accent rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary mb-4"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowNewFileDialog(false)
+                  setNewFileName("")
                 }}
-                placeholder="filename.html, style.css, script.js..."
-                className="w-full px-4 py-3 bg-accent rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary mb-4"
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setShowNewFileDialog(false)
-                    setNewFileName("")
-                  }}
-                  className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={createFile}
-                  className="flex-1 px-4 py-2 bg-primary text-primary-foreground hover:opacity-90 rounded-xl"
-                >
-                  Create
-                </button>
-              </div>
+                className="flex-1 px-4 py-2 bg-accent hover:bg-accent/80 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createFile}
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground hover:opacity-90 rounded-xl"
+              >
+                Create
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
