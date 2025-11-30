@@ -32,7 +32,6 @@ import {
   Copy,
   Zap,
   Sparkles,
-  BookOpen,
   Moon,
   Sun,
   Terminal,
@@ -45,6 +44,8 @@ import {
   Layout,
   Layers,
   Star,
+  Settings2,
+  Lightbulb,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -781,20 +782,44 @@ export default function CodeEditorApp() {
   const renderDashboard = () => (
     <div className="flex-1 overflow-auto pb-24">
       <div className="p-4 sm:p-6 space-y-6 max-w-4xl mx-auto">
-        {/* Header with Logo */}
-        <div className="flex items-center gap-4">
-          <img src="/logo.png" alt="NexLoft" className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl shadow-lg" />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+        {/* Hero Section with Logo, Title, Tagline and Create Button */}
+        <div className="hero-gradient rounded-3xl p-6 sm:p-8 text-center space-y-4">
+          {/* Logo with Float Animation */}
+          <div className="animate-float">
+            <img
+              src="/logo.png"
+              alt="NexLoft"
+              className="w-20 h-20 sm:w-24 sm:h-24 mx-auto rounded-2xl shadow-2xl animate-glow"
+            />
+          </div>
+
+          {/* Animated Title */}
+          <div className="animate-fade-in-up animation-delay-100">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent animate-gradient bg-[length:200%_auto]">
               NexLoft
             </h1>
-            <p className="text-sm sm:text-base text-muted-foreground">Where Beginners Become Builders</p>
+          </div>
+
+          {/* Animated Tagline */}
+          <div className="animate-fade-in-up animation-delay-200">
+            <p className="text-base sm:text-lg text-muted-foreground font-medium">Where Beginners Become Builders</p>
+          </div>
+
+          {/* Prominent Create Project Button */}
+          <div className="animate-fade-in-up animation-delay-300 pt-2">
+            <button
+              onClick={() => setShowCreateProjectModal(true)}
+              className="btn-primary btn-glow px-8 py-4 rounded-2xl text-lg font-bold inline-flex items-center gap-3 shadow-2xl"
+            >
+              <Plus className="w-6 h-6" />
+              Create New Project
+            </button>
           </div>
         </div>
 
-        {/* Statistics Cards */}
+        {/* Statistics Cards with Staggered Animation */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="glass-panel p-4 rounded-xl hover:scale-105 transition-transform">
+          <div className="glass-panel p-4 rounded-xl hover:scale-105 transition-transform animate-fade-in-up animation-delay-100">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                 <FolderOpen className="w-5 h-5 text-primary" />
@@ -806,7 +831,7 @@ export default function CodeEditorApp() {
             </div>
           </div>
 
-          <div className="glass-panel p-4 rounded-xl hover:scale-105 transition-transform">
+          <div className="glass-panel p-4 rounded-xl hover:scale-105 transition-transform animate-fade-in-up animation-delay-200">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center">
                 <FileCode className="w-5 h-5 text-secondary" />
@@ -818,7 +843,7 @@ export default function CodeEditorApp() {
             </div>
           </div>
 
-          <div className="glass-panel p-4 rounded-xl hover:scale-105 transition-transform">
+          <div className="glass-panel p-4 rounded-xl hover:scale-105 transition-transform animate-fade-in-up animation-delay-300">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
                 <Star className="w-5 h-5 text-yellow-500" />
@@ -830,7 +855,7 @@ export default function CodeEditorApp() {
             </div>
           </div>
 
-          <div className="glass-panel p-4 rounded-xl hover:scale-105 transition-transform">
+          <div className="glass-panel p-4 rounded-xl hover:scale-105 transition-transform animate-fade-in-up animation-delay-400">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
                 <Zap className="w-5 h-5 text-green-500" />
@@ -845,36 +870,42 @@ export default function CodeEditorApp() {
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="space-y-3">
+        {/* Quick Actions - Redesigned */}
+        <div className="space-y-3 animate-fade-in-up animation-delay-500">
           <h2 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-primary" />
             Quick Actions
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <button
-              onClick={() => setShowCreateProjectModal(true)}
-              className="glass-panel p-4 rounded-xl hover:bg-accent hover:scale-105 transition-all text-left group"
-            >
-              <Plus className="w-6 h-6 text-primary mb-2 group-hover:rotate-90 transition-transform" />
-              <p className="font-medium">New Project</p>
-              <p className="text-xs text-muted-foreground">Start fresh</p>
-            </button>
-
-            <label className="glass-panel p-4 rounded-xl hover:bg-accent hover:scale-105 transition-all text-left cursor-pointer group">
-              <Upload className="w-6 h-6 text-secondary mb-2 group-hover:translate-y-[-2px] transition-transform" />
-              <p className="font-medium">Import</p>
+          <div className="grid grid-cols-3 gap-3">
+            <label className="glass-panel p-4 rounded-xl hover:bg-accent hover:scale-105 transition-all text-center cursor-pointer group">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                <Upload className="w-6 h-6 text-primary" />
+              </div>
+              <p className="font-medium text-sm">Import</p>
               <p className="text-xs text-muted-foreground">Load project</p>
               <input type="file" accept=".json" onChange={importProject} className="hidden" />
             </label>
 
             <button
               onClick={() => setCurrentView("projects")}
-              className="glass-panel p-4 rounded-xl hover:bg-accent hover:scale-105 transition-all text-left group"
+              className="glass-panel p-4 rounded-xl hover:bg-accent hover:scale-105 transition-all text-center group"
             >
-              <Layers className="w-6 h-6 text-green-500 mb-2 group-hover:scale-110 transition-transform" />
-              <p className="font-medium">Browse</p>
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                <Layers className="w-6 h-6 text-secondary" />
+              </div>
+              <p className="font-medium text-sm">Browse</p>
               <p className="text-xs text-muted-foreground">All projects</p>
+            </button>
+
+            <button
+              onClick={() => setCurrentView("settings")}
+              className="glass-panel p-4 rounded-xl hover:bg-accent hover:scale-105 transition-all text-center group"
+            >
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500/20 to-green-500/5 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                <Settings2 className="w-6 h-6 text-green-500" />
+              </div>
+              <p className="font-medium text-sm">Settings</p>
+              <p className="text-xs text-muted-foreground">Customize</p>
             </button>
           </div>
         </div>
@@ -887,7 +918,7 @@ export default function CodeEditorApp() {
               Starred Projects
             </h2>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
-              {starredProjects.map((project) => (
+              {starredProjects.map((project, index) => (
                 <button
                   key={project.id}
                   onClick={() => {
@@ -895,7 +926,8 @@ export default function CodeEditorApp() {
                     setCurrentFileId(project.files[0]?.id || "")
                     setCurrentView("editor")
                   }}
-                  className="glass-panel p-4 rounded-xl hover:bg-accent transition-all text-left min-w-[200px] flex-shrink-0"
+                  className="glass-panel p-4 rounded-xl hover:bg-accent transition-all text-left min-w-[180px] flex-shrink-0 hover:scale-105 animate-fade-in-up"
+                  style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
@@ -915,23 +947,25 @@ export default function CodeEditorApp() {
             Recent Projects
           </h2>
           {projects.length === 0 ? (
-            <div className="glass-panel p-8 rounded-xl text-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <FolderOpen className="w-8 h-8 text-primary" />
+            <div className="glass-panel p-8 rounded-xl text-center animate-scale-in">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mx-auto mb-4 animate-float">
+                <FolderOpen className="w-10 h-10 text-primary" />
               </div>
-              <h3 className="font-semibold mb-2">No projects yet</h3>
-              <p className="text-muted-foreground mb-4 text-sm">Create your first project to get started</p>
+              <h3 className="font-semibold text-lg mb-2">No projects yet</h3>
+              <p className="text-muted-foreground mb-4 text-sm">
+                Start your coding journey by creating your first project
+              </p>
               <button
                 onClick={() => setShowCreateProjectModal(true)}
-                className="btn-primary px-6 py-2 rounded-lg font-medium"
+                className="btn-primary px-6 py-3 rounded-xl font-medium inline-flex items-center gap-2"
               >
-                <Plus className="w-4 h-4 inline mr-2" />
-                Create Project
+                <Plus className="w-5 h-5" />
+                Create Your First Project
               </button>
             </div>
           ) : (
             <div className="grid gap-3">
-              {recentProjects.map((project) => (
+              {recentProjects.map((project, index) => (
                 <button
                   key={project.id}
                   onClick={() => {
@@ -939,10 +973,11 @@ export default function CodeEditorApp() {
                     setCurrentFileId(project.files[0]?.id || "")
                     setCurrentView("editor")
                   }}
-                  className="glass-panel p-4 rounded-xl hover:bg-accent hover:translate-x-1 transition-all text-left group"
+                  className="glass-panel p-4 rounded-xl hover:bg-accent hover:translate-x-1 transition-all text-left group animate-slide-in-left"
+                  style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                       <span className="text-lg font-bold text-primary">{project.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -950,11 +985,14 @@ export default function CodeEditorApp() {
                         <h3 className="font-semibold truncate">{project.name}</h3>
                         {project.starred && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {project.files.length} files • {formatTimeAgo(project.updatedAt)}
-                      </p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary">{project.language}</span>
+                        <span>{project.files.length} files</span>
+                        <span>•</span>
+                        <span>{formatTimeAgo(project.updatedAt)}</span>
+                      </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-1 transition-transform flex-shrink-0" />
+                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all flex-shrink-0" />
                   </div>
                 </button>
               ))}
@@ -963,17 +1001,23 @@ export default function CodeEditorApp() {
         </div>
 
         {/* Tips Section */}
-        <div className="glass-panel p-4 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5">
+        <div className="glass-panel p-4 rounded-xl animate-fade-in-up">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <BookOpen className="w-5 h-5 text-primary" />
+              <Lightbulb className="w-5 h-5 text-primary" />
             </div>
             <div>
               <h3 className="font-semibold mb-1">Pro Tip</h3>
               <p className="text-sm text-muted-foreground">
-                Use <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs">Ctrl+S</kbd> to save,
-                <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs ml-1">Ctrl+P</kbd> for snippets, and
-                <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs ml-1">Ctrl+Enter</kbd> to run code.
+                {
+                  [
+                    "Use Ctrl+S to quickly save your work",
+                    "Star your favorite projects for quick access",
+                    "Export your projects to share with others",
+                    "Enable auto-save to never lose your progress",
+                    "Use the search feature to find code quickly",
+                  ][Math.floor(Math.random() * 5)]
+                }
               </p>
             </div>
           </div>
